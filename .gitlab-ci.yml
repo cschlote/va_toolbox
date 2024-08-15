@@ -1,0 +1,115 @@
+# Use Ubuntu-based dev image with some D compilers and dub installed
+image: "gitlab.vahanus.net:5050/vahanus/public/container-ubuntu-dlang-dev:latest"
+
+variables:
+  # For non-Kubernetes executors, we use tcp://docker:2375
+  DOCKER_HOST: tcp://docker:2375
+  # This will instruct Docker not to start over TLS.
+  DOCKER_TLS_CERTDIR: ""
+  # When using dind, it's wise to use the overlayfs driver for
+  # improved performance.
+  DOCKER_DRIVER: overlay2
+  # We can pass ENV vars to the pipeline
+  VA_TEST: "abc"
+
+before_script:
+  - command -v image-info.sh && image-info.sh || true
+
+stages:
+  - lint
+  - build
+  - test
+  - deploy
+
+#-- Do linting on the supplied sources --------------------------------------
+
+lint d-language:
+  tags:
+    - gitlabdocker
+  stage: lint
+  script:
+      - ./scripts/lint.sh | tee linter.log || true
+      - if grep error linter.log ; then echo "found linter error"; false; fi
+  cache:
+    key: "DUB-CACHE"
+    untracked: true
+    paths:
+      - .dub/
+  artifacts:
+    paths:
+      - linter.log
+
+lint scripts:
+  image: docker:19.03.1
+  services:
+    - docker:19.03.1-dind
+  tags:
+    - gitlabdocker
+  stage: lint
+  script:
+    - echo "linting $CI_COMMIT_REF_NAME / $CI_COMMIT_SHA ..."
+    #- docker run --rm -i hadolint/hadolint < Dockerfile
+    - docker run -v "$PWD:/mnt" koalaman/shellcheck scripts/*.sh
+    - echo "Finished linting successfully."
+
+#-- Build the application ---------------------------------------------------
+
+build app and docs:
+  tags:
+    - gitlabdocker
+  stage: build
+  script:
+    - ./scripts/build.sh
+  cache:
+    key: "DUB-CACHE"
+    untracked: true
+    paths:
+      - .dub/
+  artifacts:
+    paths:
+      - 99beers-d-template
+      - docs/
+
+#-- Test the application ----------------------------------------------------
+
+test app:
+  tags:
+    - gitlabdocker
+  stage: test
+  script:
+    - ./scripts/test.sh
+  cache:
+    key: "DUB-CACHE"
+    untracked: true
+    paths:
+      - .dub/
+  artifacts:
+    paths:
+      - 99beers-d-template.json
+
+#-- Deploy the application --------------------------------------------------
+
+deploy_staging:
+  tags:
+    - gitlabdocker
+  stage: deploy
+  script:
+    - ./scripts/deploy.sh
+  environment:
+    name: staging
+    url: https://packages.vahanus.net
+  only:
+    - master
+
+deploy_prod:
+  tags:
+    - gitlabdocker
+  stage: deploy
+  script:
+    - echo "Deploy to production server"
+  environment:
+    name: production
+    url: https://packages.vahanus.net
+  when: manual
+  only:
+    - master
