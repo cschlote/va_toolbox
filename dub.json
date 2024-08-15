@@ -1,0 +1,9 @@
+{
+	"authors": [
+		"Carsten Schlote"
+	],
+	"copyright": "Copyright © 2024, Carsten Schlote",
+	"description": "A collection of debugging and helper code",
+	"license": "GPL-3.0-only",
+	"name": "va_toolbox"
+}

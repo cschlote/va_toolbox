@@ -1,0 +1,16 @@
+.dub
+docs.json
+__dummy.html
+docs/
+/va_toolbox
+va_toolbox.so
+va_toolbox.dylib
+va_toolbox.dll
+libva_toolbox.a
+va_toolbox.lib
+va_toolbox-test-*
+*.exe
+*.pdb
+*.o
+*.obj
+*.lst
