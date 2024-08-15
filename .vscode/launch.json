@@ -1,0 +1,33 @@
+{
+    // Verwendet IntelliSense zum Ermitteln möglicher Attribute.
+    // Zeigen Sie auf vorhandene Attribute, um die zugehörigen Beschreibungen anzuzeigen.
+    // Weitere Informationen finden Sie unter https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Launch App",
+            "program": "${workspaceFolder}/va_toolbox",
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Launch Test App",
+            "program": "${workspaceFolder}/va_toolbox-test-application",
+            // "args": ["--", "-t1", "-i", "Test generateBurningShipImage() CTFE"],
+            "args": ["--", "-t1", "-i", "Test SimpleBMPImage"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Launch test Lib",
+            "program": "${workspaceFolder}/va_toolbox-test-library",
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

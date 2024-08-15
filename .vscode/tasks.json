@@ -1,0 +1,46 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "dub",
+			"run": false,
+			"cwd": "${workspaceFolder}",
+			"compiler": "$current",
+			"archType": "$current",
+			"buildType": "unittest-cov",
+			"configuration": "$current",
+			"problemMatcher": [
+				"$dmd"
+			],
+			"group": "build",
+			"label": "dub: Test va_toolbox ALL tests",
+			"detail": "dub test --compiler=ldc2 -a=x86_64 -b=debug -c=application",
+			"test": true,
+			"dub_args": [ "--","-t1", "-v"]
+			// "dub_args": [ "--","-t1", "-v", "-i", "Test generateBurningShipImage"]
+			// "dub_args": [ "--","-t1", "-v", "-i", "Testing toDiffDump"]
+		},
+		{
+			"type": "dub",
+			"run": false,
+			"cwd": "${workspaceFolder}",
+			"compiler": "$current",
+			"archType": "$current",
+			"buildType": "unittest-cov",
+			"configuration": "$current",
+			"problemMatcher": [
+				"$dmd"
+			],
+			"group": "build",
+			"label": "dub: Test va_toolbox SOME tests",
+			"detail": "dub test --compiler=ldc2 -a=x86_64 -b=debug -c=application",
+			"test": true,
+			// "dub_args": [ "--","-t1", "-v"]
+			// "dub_args": [ "--","-t1", "-v", "-i", "Test generateBurningShipImage"]
+			// "dub_args": [ "--","-t1", "-v", "-i", "Testing toDiffDump"]
+			// "dub_args": [ "--","-t1", "-v", "-i", "Testing mapIterToColor"]
+			"dub_args": [ "--","-t1", "-v", "-i", "Test SimpleBMPImage"]
+
+		}
+	]
+}
