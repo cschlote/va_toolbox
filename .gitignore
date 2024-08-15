@@ -2,6 +2,7 @@
 docs.json
 __dummy.html
 docs/
+tests/tmp/
 /va_toolbox
 va_toolbox.so
 va_toolbox.dylib
