@@ -331,7 +331,7 @@ unittest {
             4, 25, 25, 25
         ];
         assert(bmpData[] == expectBmpData, "Should be reference data.");
-        imgObj.saveBMP("test.bmp");
+        imgObj.saveBMP("tests/tmp/u8pcm-2x2.bmp");
 
     }
 }
