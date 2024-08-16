@@ -1,3 +1,9 @@
+/** This module contains support for hexdumps and diffs.
+ *
+ * Authors: Carsten Schlote
+ * Copyright: Carsten Schlote, 2024
+ * License: GPL-3.0-only
+ */
 module va_toolbox.hexdumps;
 
 import std.algorithm;
@@ -16,7 +22,7 @@ import std.string;
  * or '.' if not printable. Similar to the `hexdump` CLI command.
  *
  * Params:
- *     data = The array of `ubyte` to be dumped as hex.
+ *     edata = The array of `ubyte` to be dumped as hex.
  *     offset = Instead of 0 use some other start value for the dump
  *     prefix = Prefix to output
  *
@@ -88,11 +94,15 @@ unittest {
  + Params:
  +   ra = dynamic Array A
  +   rb = dynamic Array B
+ +   adesc = a short text for array A, default is "<:"
+ +   bdesc = a short text for array B, default is ">:"
  + Returns:
+ +   a descriptive string with a diff.
  +/
 string toDiffDump(T)(const void[] ra, const void[] rb, string adesc = "<:", string bdesc = ">:") {
     enum chunksize = 16;
-    auto r_combined = lockstep( (cast(ubyte[])ra).chunks(chunksize), (cast(ubyte[])rb).chunks(chunksize));
+    auto r_combined = lockstep((cast(ubyte[]) ra).chunks(chunksize), (cast(ubyte[]) rb).chunks(
+            chunksize));
 
     auto result = appender!string;
     size_t nextPrintIdx = 0;
@@ -156,10 +166,11 @@ unittest {
  * Returns:
  *   A string containing the detailed comparison report, including the hex dumps and the diff.
  */
-string toRawDataDiff(const void[] va, const void[] vb, string namea = "DATA A:\n", string nameb = "DATA B:\n", string header = "START OF DIFF\n") {
+string toRawDataDiff(const void[] va, const void[] vb,
+    string namea = "DATA A:\n", string nameb = "DATA B:\n", string header = "START OF DIFF\n") {
 
-    const ubyte[] a  = cast(ubyte[])va;
-    const ubyte[] b  = cast(ubyte[])vb;
+    const ubyte[] a = cast(ubyte[]) va;
+    const ubyte[] b = cast(ubyte[]) vb;
 
     Appender!string output;
 

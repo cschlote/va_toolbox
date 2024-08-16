@@ -7,6 +7,10 @@
  * waveform data. This module allows for writing WAV files from raw audio data
  * arrays, supporting a range of data types including `ubyte`, `short`, `int`,
  * `float`, and `double`.
+ *
+ * Authors: Carsten Schlote
+ * Copyright: Carsten Schlote, 2024
+ * License: GPL-3.0-only
  */
 module va_toolbox.wav_audio;
 
@@ -23,7 +27,6 @@ import std.stdint;
 import core.time;
 
 import va_toolbox.hexdumps;
-
 
 /**
  * Enums for WAV file format constants.
@@ -97,7 +100,6 @@ enum AudioFormats {
  *   audioData = The raw audio data to be written to the WAV file.
  *   sampleRate = The sampling rate of the audio data.
  *   numChannels = The number of audio channels (1 for mono, 2 for stereo).
- *   bitsPerSample = The number of bits per sample (e.g., 8, 16, 24, 32).
  *
  * Returns:
  *   A `ubyte[]` containing the WAV file formatted data.
@@ -226,7 +228,6 @@ ubyte[] toWAVFile(T)(const T[] audioData, uint sampleRate, ushort numChannels)
  *   audioData = The raw audio data to be written.
  *   sampleRate = The sampling rate of the audio data.
  *   numChannels = The number of audio channels (1 for mono, 2 for stereo).
- *   bitsPerSample = The number of bits per sample (e.g., 8, 16, 24, 32).
  */
 void writeWAVFile(T)(string filePath, const T[] audioData, uint sampleRate, ushort numChannels)
     if (is(T == ubyte) || is(T == byte) || is(T == short) || is(T == int) || is(T == float)) {

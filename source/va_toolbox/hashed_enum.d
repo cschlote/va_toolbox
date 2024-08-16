@@ -1,6 +1,10 @@
 /**
  * This modules provides code to declare enumeration with hashed values instead of usual
  * numeration starting from 0 to n .
+ *
+ * Authors: Carsten Schlote
+ * Copyright: Carsten Schlote, 2024
+ * License: GPL-3.0-only
  */
 module va_toolbox.hashed_enum;
 

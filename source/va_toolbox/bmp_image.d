@@ -1,3 +1,10 @@
+/** Simple class to write BMP (RIFF) files. Only a subset is supported.
+ * Loading of BMP files might be added later.
+ *
+ * Authors: Carsten Schlote
+ * Copyright: Carsten Schlote, 2024
+ * License: GPL-3.0-only
+ */
 module va_toolbox.bmp_image;
 
 import std.array;
@@ -41,13 +48,13 @@ class SimpleBMPImage {
         height = h;
     }
 
-    /++ Import a iteration map using uint[]. Scale colores over range 0..max
-     +
-     + Params:
+    /** Import a iteration map using uint[]. Scale colores over range 0..max
+     *
+     * Params:
      *   w = number of pixels width
      *   h = number of pixel height
-     +   iterMap = map with iterations.
-     +/
+     *   iterMap = map with iterations.
+     */
     this(int w, int h, const uint[] iterMap) {
         import std.algorithm : map, fold, max;
 
@@ -62,13 +69,13 @@ class SimpleBMPImage {
         height = h;
     }
 
-    /++ Import a iteration map using float[]. Scales 2 color rangeses over range -max..0..max
-     +
-     + Params:
+    /** Import a iteration map using float[]. Scales 2 color rangeses over range -max..0..max
+     *
+     * Params:
      *   w = number of pixels width
      *   h = number of pixel height
-     +   signedMap = map with iterations.
-     +/
+     *   signedMap = map with iterations.
+     */
     this(int w, int h, const float[] signedMap) {
         import std.algorithm : map, fold, max, min, mean;
 

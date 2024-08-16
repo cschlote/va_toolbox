@@ -1,3 +1,9 @@
+/** This module defines a 3 byte GBR pixel.
+ *
+ * Authors: Carsten Schlote
+ * Copyright: Carsten Schlote, 2024
+ * License: GPL-3.0-only
+ */
 module va_toolbox.rgbpixel;
 
 import std.algorithm;
