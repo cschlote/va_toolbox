@@ -9,6 +9,7 @@ module va_toolbox.rgbpixel;
 import std.algorithm;
 import std.array;
 import std.conv;
+import std.format;
 import std.math;
 import std.range;
 import std.stdio;
@@ -22,6 +23,10 @@ align(1) struct RGBPixel {
         red = r;
         green = g;
         blue = b;
+    }
+
+    string toString() const {
+        return format("RGBPixel(%3d, %3d, %3d)", red, green, blue);
     }
 
     /// Addition of two RGBPixels
