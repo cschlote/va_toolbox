@@ -17,14 +17,15 @@ import std.stdio;
 import std.string;
 
 /**
- * Converts the given array of `ubyte` to a hex dump string.
+ * Converts the given array of type `T` to a hex dump string.
  * After 16 bytes of hexadecimal numbers, the same bytes are shown as characters,
  * or '.' if not printable. Similar to the `hexdump` CLI command.
  *
  * Params:
- *     edata = The array of `ubyte` to be dumped as hex.
+ *     edata = The array of `T` to be dumped as hex.
  *     offset = Instead of 0 use some other start value for the dump
- *     prefix = Prefix to output
+ *     prefix = Prefix to output. The default is an empty string.
+ *     chunksize = Number of bytes per line
  *
  * Returns:
  *     A string representing the hex dump of the input data.
@@ -34,11 +35,10 @@ import std.string;
  *     string dump = toPrettyHexDump(exampleData);
  *     writeln(dump);
  */
-string toPrettyHexDump(T)(const T[] edata, size_t offset = 0, string prefix = "") {
+string toPrettyHexDump(T)(const T[] edata, size_t offset = 0, string prefix = "", const int chunksize = 16) {
     auto result = appender!string();
 
     const ubyte[] data = cast(ubyte[]) edata;
-    enum chunksize = 16;
     foreach (idxLine; iota(0, data.length, chunksize)) {
         result.put(format("%s%08x: ", prefix, offset + idxLine));
         // Hexadecimal representation
@@ -71,12 +71,39 @@ string toPrettyHexDump(T)(const T[] edata, size_t offset = 0, string prefix = ""
  /// Unittests to verify the `toPrettyHexDump` function.
 unittest {
     ubyte[] testData1 = cast(ubyte[])("Hello, World!" ~ "Hello, World!");
-    string expectedOutput1 =
+    string expectedOutput1a =
         "00000000: 48 65 6c 6c 6f 2c 20 57 6f 72 6c 64 21 48 65 6c  'Hello, World!Hel'\n" ~
         "00000010: 6c 6f 2c 20 57 6f 72 6c 64 21                    'lo, World!'\n";
-
-    string result1 = toPrettyHexDump(testData1);
-    assert(result1 == expectedOutput1, format("Expected:\n%s\nGot:\n%s", expectedOutput1, result1));
+    string expectedOutput1b =
+        "00000000: 48 65 6c 6c 6f 2c 20 57  'Hello, W'\n" ~
+        "00000008: 6f 72 6c 64 21 48 65 6c  'orld!Hel'\n" ~
+        "00000010: 6c 6f 2c 20 57 6f 72 6c  'lo, Worl'\n" ~
+        "00000018: 64 21                    'd!'\n";
+    string expectedOutput1c =
+        "00000000: 48 65 6c 6c  'Hell'\n" ~
+        "00000004: 6f 2c 20 57  'o, W'\n" ~
+        "00000008: 6f 72 6c 64  'orld'\n" ~
+        "0000000c: 21 48 65 6c  '!Hel'\n" ~
+        "00000010: 6c 6f 2c 20  'lo, '\n" ~
+        "00000014: 57 6f 72 6c  'Worl'\n" ~
+        "00000018: 64 21        'd!'\n";
+    string expectedOutput1d =
+        "00000000: 48 65 6c 6c 6f 2c 20 57 6f 72 6c 64 21 48 65 6c 6c 6f 2c 20 57 6f 72 6c 64 21                    " ~
+        "'Hello, World!Hello, World!'\n";
+    string expectedOutput1e =
+      "00000000: 48 65 6c 6c 6f 2c 20 57 6f 72  'Hello, Wor'\n" ~
+      "0000000a: 6c 64 21 48 65 6c 6c 6f 2c 20  'ld!Hello, '\n" ~
+      "00000014: 57 6f 72 6c 64 21              'World!'\n";
+    string result1a = toPrettyHexDump(testData1);
+    assert(result1a == expectedOutput1a, format("Expected:\n%s\nGot:\n%s", expectedOutput1a, result1a));
+    string result1b = toPrettyHexDump(testData1, 0, "", 8);
+    assert(result1b == expectedOutput1b, format("Expected:\n%s\nGot:\n%s", expectedOutput1b, result1b));
+    string result1c = toPrettyHexDump(testData1, 0, "", 4);
+    assert(result1c == expectedOutput1c, format("Expected:\n%s\nGot:\n%s", expectedOutput1c, result1c));
+    string result1d = toPrettyHexDump(testData1, 0, "", 32);
+    assert(result1d == expectedOutput1d, format("Expected:\n%s\nGot:\n%s", expectedOutput1d, result1d));
+    string result1e = toPrettyHexDump(testData1, 0, "", 10);
+    assert(result1e == expectedOutput1e, format("Expected:\n%s\nGot:\n%s", expectedOutput1e, result1e));
 
     ubyte[] testData2 = cast(ubyte[]) "This is an example of a hex dump function in D.\n";
     string result2 = toPrettyHexDump(testData2);
@@ -87,6 +114,7 @@ unittest {
         "00000010: 6c 65 20 6f 66 20 61 20 68 65 78 20 64 75 6d 70  'le of a hex dump'\n" ~
         "00000020: 20 66 75 6e 63 74 69 6f 6e 20 69 6e 20 44 2e 0a  ' function in D..'\n";
     assert(result2.startsWith(expectedStart), format("Expected start:\n%s\nGot:\n%s", expectedStart, result2));
+
 }
 
 /++ Print the difference between two array
@@ -189,6 +217,7 @@ string toRawDataDiff(const void[] va, const void[] vb,
     return output.data;
 }
 
+@("toRawDataDiff()")
 unittest {
     import std.array : array;
     import std.conv : to;
