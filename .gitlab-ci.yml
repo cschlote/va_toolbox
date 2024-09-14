@@ -40,9 +40,9 @@ lint d-language:
       - linter.log
 
 lint scripts:
-  image: docker:19.03.1
+  image: docker:latest
   services:
-    - docker:19.03.1-dind
+    - docker:dind
   tags:
     - gitlabdocker
   stage: lint
@@ -67,7 +67,7 @@ build app and docs:
       - .dub/
   artifacts:
     paths:
-      - 99beers-d-template
+      - libva_toolbox.a
       - docs/
 
 #-- Test the application ----------------------------------------------------
@@ -85,7 +85,7 @@ test app:
       - .dub/
   artifacts:
     paths:
-      - 99beers-d-template.json
+      - libva_toolbox.json
 
 #-- Deploy the application --------------------------------------------------
 
@@ -99,7 +99,7 @@ deploy_staging:
     name: staging
     url: https://packages.vahanus.net
   only:
-    - master
+    - main
 
 deploy_prod:
   tags:
@@ -112,4 +112,4 @@ deploy_prod:
     url: https://packages.vahanus.net
   when: manual
   only:
-    - master
+    - main
