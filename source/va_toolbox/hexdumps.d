@@ -18,14 +18,14 @@ import std.string;
 
 /**
  * Converts the given array of type `T` to a hex dump string.
- * After 16 bytes of hexadecimal numbers, the same bytes are shown as characters,
- * or '.' if not printable. Similar to the `hexdump` CLI command.
+ * After a configurable number of  bytes of hexadecimal numbers, the same bytes are shown as characters,
+ * or '.' if not printable. This similar to the `hexdump` CLI command.
  *
  * Params:
  *     edata = The array of `T` to be dumped as hex.
  *     offset = Instead of 0 use some other start value for the dump
  *     prefix = Prefix to output. The default is an empty string.
- *     chunksize = Number of bytes per line
+ *     chunksize = Number of bytes per line. The default is 16.
  *
  * Returns:
  *     A string representing the hex dump of the input data.
@@ -91,9 +91,9 @@ unittest {
         "00000000: 48 65 6c 6c 6f 2c 20 57 6f 72 6c 64 21 48 65 6c 6c 6f 2c 20 57 6f 72 6c 64 21                    " ~
         "'Hello, World!Hello, World!'\n";
     string expectedOutput1e =
-      "00000000: 48 65 6c 6c 6f 2c 20 57 6f 72  'Hello, Wor'\n" ~
-      "0000000a: 6c 64 21 48 65 6c 6c 6f 2c 20  'ld!Hello, '\n" ~
-      "00000014: 57 6f 72 6c 64 21              'World!'\n";
+        "00000000: 48 65 6c 6c 6f 2c 20 57 6f 72  'Hello, Wor'\n" ~
+        "0000000a: 6c 64 21 48 65 6c 6c 6f 2c 20  'ld!Hello, '\n" ~
+        "00000014: 57 6f 72 6c 64 21              'World!'\n";
     string result1a = toPrettyHexDump(testData1);
     assert(result1a == expectedOutput1a, format("Expected:\n%s\nGot:\n%s", expectedOutput1a, result1a));
     string result1b = toPrettyHexDump(testData1, 0, "", 8);
