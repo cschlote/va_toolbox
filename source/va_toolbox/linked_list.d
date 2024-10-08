@@ -768,6 +768,35 @@ struct ListHead {
         return 0;
     }
 
+    /// Ranges D interface - Experimental
+    version (RANGEEXP) {
+
+        @property bool empty() => this.isListEmpty;
+
+        @property ListNode* front() => this.isListEmpty ? null : this.getHeadNode.getNextNode;
+        void popFront() {
+            this.remNodeHead;
+        }
+
+        @property ListNode* back() => this.isListEmpty ? null : this.getTailNode.getPrevNode;
+        void popBack() {
+            this.remNodeTail;
+        }
+
+        ref auto opIndex(size_t index) {
+            foreach (idx, ref val; this)
+                if (idx == index)
+                    return val;
+            assert(false, __PRETTY_FUNCTION__ ~ ": Out of index.");
+        }
+
+        @property size_t length() {
+            size_t len = 0;
+            foreach (idx, ref val; this)
+                len++;
+            return len;
+        }
+    }
 }
 
 /** Generator to create a ListNode on heap
@@ -877,18 +906,68 @@ unittest {
     }
     foreach (ref key; *lh) {
         // writefln("%s", key);
-        if (key.ln_Priority >= 2) break;
+        if (key.ln_Priority >= 2)
+            break;
     }
     foreach (idx, ref key; *lh) {
         // writefln("%02d : %s", idx, key);
-        if (idx >= 2) break;
+        if (idx >= 2)
+            break;
     }
     while (lh.remNodeHead) {
     }
     while (lh.remNodeTail) {
     }
     assert(lh.isListEmpty);
+}
 
+version (RANGEEXP) {
+    @("LinkedList: Test ranges interface")
+    unittest {
+        import std.algorithm;
+        import std.range;
+        import std.stdio : writefln, writeln;
+        import std.format : format;
+
+        static assert(!hasLength!(ListHead));
+        static assert(isInputRange!ListHead);
+        static assert(!isOutputRange!(ListHead, ListHead));
+        static assert(!isForwardRange!ListHead);
+        static assert(!isBidirectionalRange!ListHead);
+        static assert(!isRandomAccessRange!ListHead);
+
+        ListHead lh1;
+        lh1.initListHead;
+        foreach (short idx; 0 .. 10) {
+            auto node = makeListNode(ListNodeType.LNT_UNKNOWN, idx, format("Node%02d", idx));
+            writefln("%02d:A %s", idx, *node);
+            lh1.addNodeTail(*node);
+        }
+
+        ListHead lh2;
+        lh2.initListHead;
+        foreach (short idx; 20 .. 30) {
+            auto node = makeListNode(ListNodeType.LNT_UNKNOWN, idx, format("Node%02d", idx));
+            writefln("%02d:B %s", idx, *node);
+            lh2.addNodeTail(*node);
+        }
+
+// TODO: Find out what happens here.
+
+        ListHead lh3;
+        lh3.initListHead;
+        foreach (node; chain(lh1, lh2)) {
+            lh3.addNodeTail(*node);
+            writefln("%02d:C %s", 0, *node);
+        }
+
+        // writefln("Length = %d", lh3.length);
+        // assert (lh3.length == 20);
+
+        foreach (idx, ref node; lh3.enumerate) {
+            writefln("%02d: %s", idx, *node);
+        }
+    }
 }
 
 /*******************************************************************************
