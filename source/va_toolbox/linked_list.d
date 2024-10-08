@@ -147,8 +147,7 @@ struct ListNode {
     *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
     *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
     */
-    void addNode(ListHead* list, ListNode* listNode = null) {
-        enforce(list != null, __PRETTY_FUNCTION__ ~ ": You must provide a target ListHead");
+    void addNode(scope ref ListHead list, scope ListNode* listNode = null) {
         version (DEBUG)
             assert(this.ln_Succ == ODDADDR && this.ln_Pred == ODDADDR, __PRETTY_FUNCTION__ ~ ": Node already added?");
         else
@@ -258,9 +257,9 @@ unittest {
 
     ListHead lh;
     lh.initListHead;
-    node1.addNode(&lh, lh.getTailNode); // Test special case...
-    node2.addNode(&lh);
-    node3.addNode(&lh);
+    node1.addNode(lh, lh.getTailNode); // Test special case...
+    node2.addNode(lh);
+    node3.addNode(lh);
     int idx = 3;
     for (ListNode* nd = lh.getHeadNode.getNextNode; !nd.isNodeTail; nd = nd.getNextNode) {
         import std.stdio : writeln;
@@ -275,9 +274,9 @@ unittest {
     assert(lh.isListEmpty);
 
     idx = 1;
-    node1.addNode(&lh);
-    node2.addNode(&lh, node1);
-    node3.addNode(&lh, lh.getTailNode); // Test special case...
+    node1.addNode(lh);
+    node2.addNode(lh, node1);
+    node3.addNode(lh, lh.getTailNode); // Test special case...
     for (ListNode* nd = lh.getHeadNode.getNextNode; !nd.isNodeTail; nd = nd.getNextNode) {
         import std.stdio : writeln;
 
@@ -407,7 +406,7 @@ struct ListHead {
     *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
     *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
     */
-    void addNodeHead(ListNode* node) {
+    void addNodeHead(ref ListNode node) {
         ListNode* oldFirstNode;
 
         oldFirstNode = this.getHeadNode.getNextNode;
@@ -417,8 +416,8 @@ struct ListHead {
         node.ln_Succ = oldFirstNode;
 
         // Ok, now patch our node into the existing list
-        this.lh_Head = node;
-        oldFirstNode.ln_Pred = node;
+        this.lh_Head = &node;
+        oldFirstNode.ln_Pred = &node;
 
         // Now node should be first node of List.
     }
@@ -511,7 +510,7 @@ struct ListHead {
     *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
     *
     */
-    void addNodeTail(ListNode* node) {
+    void addNodeTail(ref ListNode node) {
         ListNode* lastnode; // The HEAD node or the last real node of list
 
         lastnode = this.getTailNode.getPrevNode; // Get the last real node of list or HEAD node
@@ -522,8 +521,8 @@ struct ListHead {
 
         // Now patch our node into the list
 
-        this.getTailNode.ln_Pred /* aka. lh_TailPred */  = node; // Make our node the new last node
-        lastnode.ln_Succ = node; // Let the previous last node point to node
+        this.getTailNode.ln_Pred /* aka. lh_TailPred */  = &node; // Make our node the new last node
+        lastnode.ln_Succ = &node; // Let the previous last node point to node
     }
 
     /** remNodeTail -- remove node at the tail of a list
@@ -614,8 +613,8 @@ struct ListHead {
     *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
     *
     */
-    void addNode(ListNode* node, ListNode* listNode = null) {
-        node.addNode(&this, listNode);
+    void addNode(ref ListNode node, ListNode* listNode = null) {
+        node.addNode(this, listNode);
     }
 
     /** remNode -- remove a node from a list
@@ -651,7 +650,7 @@ struct ListHead {
     *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
     *
     */
-    ListNode* remNode(ListNode* node) {
+    ListNode* remNode(ref ListNode node) {
         return node.remNode;
     }
 
@@ -687,14 +686,14 @@ struct ListHead {
     *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
     *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
     */
-    void addNodeSorted(ListNode* node) {
+    void addNodeSorted(ref ListNode node) {
         ListNode* tnode;
         // Search for insert position
         for (tnode = this.getHeadNode.getNextNode; !tnode.isNodeTail; tnode = tnode.getNextNode()) {
             if (node.ln_Priority >= tnode.ln_Priority)
                 break;
         }
-        node.addNode(&this, tnode);
+        node.addNode(this, tnode);
     }
 
     /** findNode -- find a node by name
@@ -745,7 +744,7 @@ struct ListHead {
     }
 
     /// opAppy for foreach
-    int opApply(int delegate(ref ListNode) dg) {
+    int opApply(scope int delegate(ref ListNode) dg) {
         for (ListNode* node = this.getHeadNode.getNextNode(); !node.isNodeTail();
             node = node.getNextNode()) {
 
@@ -757,7 +756,7 @@ struct ListHead {
     }
 
     /// opAppy for foreach
-    int opApply(int delegate(int idx, ref ListNode) dg) {
+    int opApply(scope int delegate(int idx, ref ListNode) dg) {
         int idx = 0;
         for (ListNode* node = this.getHeadNode.getNextNode(); !node.isNodeTail();
             node = node.getNextNode()) {
@@ -798,7 +797,7 @@ unittest {
     assert(node1.ln_Priority == 42);
     assert(node1.ln_Name == "Test 1");
 
-    lh.addNodeHead(&node1);
+    lh.addNodeHead(node1);
     assert(lh.isListEmpty == false);
 
     assert(node1.isNodeReal);
@@ -810,7 +809,7 @@ unittest {
     assert(node2.ln_Priority == 43);
     assert(node2.ln_Name == "Test 2");
 
-    lh.addNodeTail(&node2);
+    lh.addNodeTail(node2);
     assert(node2.isNodeReal);
     assert(!node2.getPrevNode.isNodeHead);
     assert(node2.getNextNode.isNodeTail);
@@ -826,7 +825,7 @@ unittest {
     assert(node3.ln_Priority == 54);
     assert(node3.ln_Name == "Test 3");
 
-    lh.addNode(&node3, &node1);
+    lh.addNode(node3, &node1);
     assert(node3.isNodeReal);
     assert(!node3.getPrevNode.isNodeHead);
     assert(!node3.getNextNode.isNodeTail);
@@ -851,7 +850,7 @@ unittest {
     assert(node4.ln_Priority == 50);
     assert(node4.ln_Name == "Test 4");
 
-    lh.addNodeSorted(&node4);
+    lh.addNodeSorted(node4);
 
     // foreach (idx, ref key; *lh) {
     //     writefln("%02d : %s", idx, key);
@@ -861,13 +860,13 @@ unittest {
 
     lh.remNodeHead();
     lh.remNodeTail();
-    lh.remNode(&node4);
-    lh.remNode(&node3);
+    lh.remNode(node4);
+    lh.remNode(node3);
     assert(lh.isListEmpty);
 
     foreach (short idx; 0 .. 10) {
         auto node = makeListNode(ListNodeType.LNT_UNKNOWN, idx, format("Node%02d", idx));
-        lh.addNodeTail(node);
+        lh.addNodeTail(*node);
     }
     alias DG = int delegate(ref ListNode);
     foreach (ref key; *lh) {
