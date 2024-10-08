@@ -314,8 +314,8 @@ struct ListHead {
 
     /* The type and the human readable name of the list. Can be used to
        enforce node types matching the list type. */
-    ListNodeType lhb_Type;
-    string lhb_Name;
+    ListNodeType lh_Type;
+    string lh_Name;
 
     /** Get the 'head node'
      *
@@ -743,7 +743,7 @@ struct ListHead {
         return null;
     }
 
-    /// opAppy for foreach
+    /// opApply for foreach
     int opApply(scope int delegate(ref ListNode) dg) {
         for (ListNode* node = this.getHeadNode.getNextNode(); !node.isNodeTail();
             node = node.getNextNode()) {
@@ -755,7 +755,7 @@ struct ListHead {
         return 0;
     }
 
-    /// opAppy for foreach
+    /// opApply for foreach
     int opApply(scope int delegate(int idx, ref ListNode) dg) {
         int idx = 0;
         for (ListNode* node = this.getHeadNode.getNextNode(); !node.isNodeTail();
