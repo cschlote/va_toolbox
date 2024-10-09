@@ -16,8 +16,6 @@ import std.exception;
 ** code too.
 */
 
-//version(DEBUG) = 1;
-
 /*************************************************************************
 ** Type definitions for ListNodes, should always be set
 ** The system.library will always set and use these types for its
@@ -74,898 +72,910 @@ enum ListNodeType : ushort {
     LNT_USERTYPE = 0x8000 // User node types starts here
 }
 
-/*************************************************************************
-** The List Node. This is the first element of most structures, but could
-** be located everywhere in the structure.
-*/
-struct ListNode {
-    ListNode* ln_Succ; /// Pointer to next ListNode (Successor)
-    ListNode* ln_Pred; /// Pointer to previous ListNode (Predecessor)
-    ListNodeType ln_Type; /// A type number
-    short ln_Priority; /// Signed priority, for sorting
-    string ln_Name; /// Pointer to a C String
+/** A D implementation of a double-linked list
+ *
+ * This is a minimalistic approach. No extra features. Just the the list.
+ * It can be embedded into any struct/class declaration.
+ *
+ * The list uses a head and tail node. User nodes are placed between these
+ * two nodes. The empty list consists of just these two nodes.
+ */
+struct List
+{
+    /*************************************************************************
+    ** The List Node. This is the first element of most structures, but could
+    ** be located everywhere in the structure.
+    */
+    struct ListNode {
+        ListNode* ln_Succ; /// Pointer to next ListNode (Successor)
+        ListNode* ln_Pred; /// Pointer to previous ListNode (Predecessor)
 
-    /// The tail node has no successor and is part of ListHead
-    bool isNodeTail() {
-        return (this.ln_Succ == null) ? true : false;
+        ListNodeType ln_Type; /// A type number
+        short ln_Priority; /// Signed priority, for sorting
+        string ln_Name; /// Pointer to a C String
+
+        /// The tail node has no successor and is part of ListHead
+        bool isNodeTail() {
+            return (this.ln_Succ == null) ? true : false;
+        }
+
+        /// The head node has no predecessor and is part of ListHead
+        bool isNodeHead() {
+            return (this.ln_Pred == null) ? true : false;
+        }
+
+        /// Is a node a real node, neithe rhead nor tail
+        bool isNodeReal() {
+            return !(isNodeTail() || isNodeHead());
+        }
+
+        /// Some aliasing, use this with isTailNode
+        ListNode* getNextNode() {
+            assert(this.ln_Succ, "Iterate on tail node?");
+            return this.ln_Succ;
+        }
+
+        /// Some aliasing, use this with isHeadNode
+        ListNode* getPrevNode() {
+            assert(this.ln_Pred, "Iterate on head node?");
+            return this.ln_Pred;
+        }
+
+        private enum uint ODDADDR = 0xdeadcaff;
+
+        /** addNode -- insert a node into a list
+        *
+        * Insert a node into a doubly linked list AFTER a given node
+        * position.  Insertion at the head of a list is possible by passing a
+        * zero value for node, though the addNodeHead function is slightly
+        * faster for that special case. Passing the tailNode of the list adds
+        * the node to the end of the list. Again addNodeTail() might be faster.
+        *
+        * Params:
+        *   this - the node to insert AFTER...
+        *   list - a pointer to the target list header
+        *   listNode - the node after which to insert, or null to add to list head
+        *
+        * Returns:
+        *   Your list is larger by one node.
+        *
+        * Example:
+        *   ListHead myList;
+        *   ListNode* myNode,listNode;
+        *   	...
+        *   	myNode.addNodeHead( myList, listNode );
+        *
+        * Notes:
+        *   This function does not arbitrate for access to the list.  The
+        *   calling thread must be the owner of the involved list.
+        *
+        * Bugs:
+        *   none
+        *
+        * See:
+        *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
+        *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
+        */
+        void addNode(scope ref ListHead list, scope ListNode* listNode = null) {
+            version (DEBUG)
+                assert(this.ln_Succ == ODDADDR && this.ln_Pred == ODDADDR, __PRETTY_FUNCTION__ ~ ": Node already added?");
+            else
+                assert(this.ln_Succ == null && this.ln_Pred == null, __PRETTY_FUNCTION__ ~ ": Node already added?");
+
+            ListNode* next;
+
+            if (!listNode)
+                listNode = list.getHeadNode;
+
+            if (listNode.isNodeTail) // Is listNode the end of list ?
+                listNode = listNode.getPrevNode; // Move listNode one node back to head or real node.
+
+            next = listNode.getNextNode;
+
+            // Update our own links to next and previous node
+            this.ln_Succ = next;
+            this.ln_Pred = listNode;
+
+            // Then overwrite the links from previous and next node to our node
+            listNode.ln_Succ = &this;
+            next.ln_Pred = &this;
+
+            // Node is now added to list.
+        }
+
+        /** remNode -- remove a node from a list
+        *
+        * Unlink a node from whatever list it is in.  Nodes that are not part
+        * of a list must not be passed to this function!
+        *
+        * Params:
+        *   this - the node to remove
+        *
+        * Returns:
+        *   Your list is smaller by one node or empty. The returned value is your
+        *   removed node.
+        *
+        * Example:
+        *   ListNode* myNode,myRemNode;
+        *       ...
+        *   	myRemNode = remNode( myNode );		// myRemNode == myNode
+        *
+        * Notes:
+        *   This function does not arbitrate for access to the list.  The
+        *   calling task must be the owner of the involved list.
+        *   _Important note_:
+        *      The ln_Pred and ln_Succ pointers of the removed node are no
+        *      longer valid after removal from list. Do not use them after
+        *      removal.
+        *
+        * Bugs:
+        *   none
+        *
+        * See:
+        *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
+        *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
+        */
+        ListNode* remNode() {
+            ListNode* nextnode, prevnode;
+            nextnode = this.ln_Succ; // Get the prevnode and nextnode of current node
+            prevnode = this.ln_Pred;
+
+            assert(prevnode && nextnode, __PRETTY_FUNCTION__ ~ ": Node to remove is not a valid node.");
+
+            prevnode.ln_Succ = nextnode; // and merge them together :-)
+            nextnode.ln_Pred = prevnode;
+
+            // Debug hack to trigger list handling bugs in user code
+            version (DEBUG) {
+                this.ln_Succ = cast(void*) ODDADDR; // Trigger access to invalid odd memory address
+                this.ln_Pred = cast(void*) ODDADDR;
+            } else {
+                this.ln_Succ = null;
+                this.ln_Pred = null;
+            }
+            return &this;
+        }
+
     }
 
-    /// The head node has no predecessor and is part of ListHead
-    bool isNodeHead() {
-        return (this.ln_Pred == null) ? true : false;
-    }
-
-    /// Is a node a real node, neithe rhead nor tail
-    bool isNodeReal() {
-        return !(isNodeTail() || isNodeHead());
-    }
-
-    /// Some aliasing, use this with isTailNode
-    ListNode* getNextNode() {
-        assert(this.ln_Succ, "Iterate on tail node?");
-        return this.ln_Succ;
-    }
-
-    /// Some aliasing, use this with isHeadNode
-    ListNode* getPrevNode() {
-        assert(this.ln_Pred, "Iterate on head node?");
-        return this.ln_Pred;
-    }
-
-    private enum uint ODDADDR = 0xdeadcaff;
-
-    /** addNode -- insert a node into a list
-    *
-    * Insert a node into a doubly linked list AFTER a given node
-    * position.  Insertion at the head of a list is possible by passing a
-    * zero value for node, though the addNodeHead function is slightly
-    * faster for that special case. Passing the tailNode of the list adds
-    * the node to the end of the list. Again addNodeTail() might be faster.
+    /** Generator to create a ListNode on heap, optionally setting other fields
     *
     * Params:
-    *   this - the node to insert AFTER...
-    *   list - a pointer to the target list header
-    *   listNode - the node after which to insert, or null to add to list head
-    *
+    *   type = Node type
+    *   pri = Node Pri
+    *   name = Node name
     * Returns:
-    *   Your list is larger by one node.
-    *
-    * Example:
-    *   ListHead myList;
-    *   ListNode* myNode,listNode;
-    *   	...
-    *   	myNode.addNodeHead( myList, listNode );
-    *
-    * Notes:
-    *   This function does not arbitrate for access to the list.  The
-    *   calling thread must be the owner of the involved list.
-    *
-    * Bugs:
-    *   none
-    *
-    * See:
-    *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
-    *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
     */
-    void addNode(scope ref ListHead list, scope ListNode* listNode = null) {
-        version (DEBUG)
-            assert(this.ln_Succ == ODDADDR && this.ln_Pred == ODDADDR, __PRETTY_FUNCTION__ ~ ": Node already added?");
-        else
-            assert(this.ln_Succ == null && this.ln_Pred == null, __PRETTY_FUNCTION__ ~ ": Node already added?");
-
-        ListNode* next;
-
-        if (!listNode)
-            listNode = list.getHeadNode;
-
-        if (listNode.isNodeTail) // Is listNode the end of list ?
-            listNode = listNode.getPrevNode; // Move listNode one node back to head or real node.
-
-        next = listNode.getNextNode;
-
-        // Update our own links to next and previous node
-        this.ln_Succ = next;
-        this.ln_Pred = listNode;
-
-        // Then overwrite the links from previous and next node to our node
-        listNode.ln_Succ = &this;
-        next.ln_Pred = &this;
-
-        // Node is now added to list.
-    }
-
-    /** remNode -- remove a node from a list
-    *
-    * Unlink a node from whatever list it is in.  Nodes that are not part
-    * of a list must not be passed to this function!
-    *
-    * Params:
-    *   this - the node to remove
-    *
-    * Returns:
-    *   Your list is smaller by one node or empty. The returned value is your
-    *   removed node.
-    *
-    * Example:
-    *   ListNode* myNode,myRemNode;
-    *       ...
-    *   	myRemNode = remNode( myNode );		// myRemNode == myNode
-    *
-    * Notes:
-    *   This function does not arbitrate for access to the list.  The
-    *   calling task must be the owner of the involved list.
-    *   _Important note_:
-    *      The ln_Pred and ln_Succ pointers of the removed node are no
-    *      longer valid after removal from list. Do not use them after
-    *      removal.
-    *
-    * Bugs:
-    *   none
-    *
-    * See:
-    *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
-    *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
-    */
-    ListNode* remNode() {
-        ListNode* nextnode, prevnode;
-        nextnode = this.ln_Succ; // Get the prevnode and nextnode of current node
-        prevnode = this.ln_Pred;
-
-        assert(prevnode && nextnode, __PRETTY_FUNCTION__ ~ ": Node to remove is not a valid node.");
-
-        prevnode.ln_Succ = nextnode; // and merge them together :-)
-        nextnode.ln_Pred = prevnode;
-
-        // Debug hack to trigger list handling bugs in user code
+    static ListNode* makeListNode(ListNodeType type = ListNodeType.LNT_UNKNOWN, short pri = 0, string name = "") {
         version (DEBUG) {
-            this.ln_Succ = cast(void*) ODDADDR; // Trigger access to invalid odd memory address
-            this.ln_Pred = cast(void*) ODDADDR;
+            auto node = new ListNode(ODDADDR, ODDADDR, type, pri, name);
         } else {
-            this.ln_Succ = null;
-            this.ln_Pred = null;
+            auto node = new ListNode(null, null, type, pri, name);
         }
-        return &this;
+        return node;
     }
 
-}
+    /* ---------------------------------------------------------------------*/
 
-/** Generator to create a ListNode on heap, optionally setting other fields
- *
- * Params:
- *   type = Node type
- *   pri = Node Pri
- *   name = Node name
- * Returns:
- */
-ListNode* makeListNode(ListNodeType type = ListNodeType.LNT_UNKNOWN, short pri = 0, string name = "") {
-    version (DEBUG) {
-        auto node = new ListNode(ODDADDR, ODDADDR, type, pri, name);
-    } else {
-        auto node = new ListNode(null, null, type, pri, name);
-    }
-    return node;
-}
-
-/* ---------------------------------------------------------------------*/
-
-@("LinkedList: ListNode methods tests")
-unittest {
-    auto node1 = makeListNode(ListNodeType.LNT_UNKNOWN, 1, "A");
-    assertThrown!AssertError(node1.remNode());
-    auto node2 = makeListNode(ListNodeType.LNT_UNKNOWN, 2, "B");
-    auto node3 = makeListNode(ListNodeType.LNT_UNKNOWN, 3, "C");
-
-    ListHead lh;
-    lh.initListHead;
-    node1.addNode(lh, lh.getTailNode); // Test special case...
-    node2.addNode(lh);
-    node3.addNode(lh);
-    int idx = 3;
-    for (ListNode* nd = lh.getHeadNode.getNextNode; !nd.isNodeTail; nd = nd.getNextNode) {
-        import std.stdio : writeln;
-
-        // writeln(*nd);
-        assert(nd.ln_Priority == idx);
-        idx--;
-    }
-    node1.remNode();
-    node3.remNode();
-    node2.remNode();
-    assert(lh.isListEmpty);
-
-    idx = 1;
-    node1.addNode(lh);
-    node2.addNode(lh, node1);
-    node3.addNode(lh, lh.getTailNode); // Test special case...
-    for (ListNode* nd = lh.getHeadNode.getNextNode; !nd.isNodeTail; nd = nd.getNextNode) {
-        import std.stdio : writeln;
-
-        // writeln(*nd);
-        assert(nd.ln_Priority == idx);
-        idx++;
-    }
-    node1.remNode();
-    node3.remNode();
-    node2.remNode();
-
-    node1 = node2 = node3 = null;
-}
-
-/************************************************************************
-** The List Header - simply two merged list nodes.
-**
-** The ListHead is the Head and Tail node in a single structure.
-**
-**   /->Next                                  # lh_Head :    HEAD
-**   |  Prev  Next (=PrevNext)= null          # lh_Tail :    HEAD  TAIL
-**   \------->Prev                            # lh_TailPred:       TAIL
-**
-** Note:
-** - head and tail pointing to each other, but the head has no predessor
-**   and the tail node has no successor.
-** - The lh_Tail is always 'null'. It aliases the ln_Pred of head and the
-**   ln_Succ of the tail node.
-*/
-struct ListHead {
-    /* The following aliases the links of the head and tail nodes */
-    ListNode* lh_Head;
-    ListNode* lh_Tail;
-    ListNode* lh_TailPred;
-
-    /* The type and the human readable name of the list. Can be used to
-       enforce node types matching the list type. */
-    ListNodeType lh_Type;
-    string lh_Name;
-
-    /** Get the 'head node'
-     *
-     * Note: The cast operation is hidden inside this function.
-     * Returns: Ptr to the 'head node'
-     */
-    ListNode* getHeadNode() {
-        return cast(ListNode*)&(this.lh_Head);
-    }
-
-    /** Get the 'tail node'
-     *
-     * Note: The cast operation is hidden inside this function.
-     * Returns: Ptr to the 'head node'
-     */
-    ListNode* getTailNode() {
-        return cast(ListNode*)&(this.lh_Tail);
-    }
-
-    /** Is this list empty?
-     *
-     * Returns:
-     *   true if empty, false otherwise
-     */
-    bool isListEmpty() {
-        return getHeadNode.getNextNode.isNodeTail();
-    }
-
-    /** initListHead -- Inititalize a ListHead
-    *
-    * Before you can use list functions on a ListHead you must
-    * initialize the structure.
-    *
-    * Params:
-    *   list -- ptr to a uninitialized ListHead structure
-    *
-    * Returns:
-    *   An initialized ListHead.
-    *
-    * Example:
-    *   ListHead myList;
-    *   myList.initListHead();
-    *
-    * Notes:
-    *   Any information in the ListHead will be destroyed. Do not use it on
-    *   already initialized ListHeads, or you may lose the actual linked list.
-    *
-    * Bugs:
-    *   none
-    *
-    * See:
-    *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
-    *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
-    */
-    void initListHead() {
-        this.lh_Head = this.getTailNode;
-        this.lh_Tail = null;
-        this.lh_TailPred = this.getHeadNode;
-    }
-
-    /** addNodeHead -- insert node at the head of a list
-    *
-    * Add a node to the head of a doubly linked list. The code links
-    * the node after the HEAD node and in front of the existing nodes.
-    * There is always a TAIL node at least.
-    *
-    * Params:
-    *   this - a pointer to the target list header
-    *   node - the node to insert
-    *
-    * Returns:
-    *   Your list is larger by one node.
-    *
-    * Example:
-    *   ListHead myList;
-    *   ListNode* myNode;
-    *   ...
-    * 	myList.addNodeHead( myNode );
-    *
-    * Notes:
-    *   This function does not arbitrate for access to the list.  The
-    *   calling task must be the owner of the involved list.
-    *
-    * Bugs:
-    *   none
-    *
-    * See:
-    *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
-    *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
-    */
-    void addNodeHead(ref ListNode node) {
-        ListNode* oldFirstNode;
-
-        oldFirstNode = this.getHeadNode.getNextNode;
-
-        // Setup the links of the node to add
-        node.ln_Pred = this.getHeadNode;
-        node.ln_Succ = oldFirstNode;
-
-        // Ok, now patch our node into the existing list
-        this.lh_Head = &node;
-        oldFirstNode.ln_Pred = &node;
-
-        // Now node should be first node of List.
-    }
-
-    /** remNodeHead -- remove node at the head of a list
-    *
-    * Remove a node to the head of a doubly linked list.
-    *
-    * Params:
-    *   this - the list to remove a head node from
-    *
-    * Returns:
-    *   Your list is smaller by one node or empty. The returned value is your
-    *   removed node or null if List was empty
-    *
-    * Example:
-    *   ListHead* myList;
-    *       ...
-    *   	while ( myList.remNodeHead() )
-    *       {
-    *   		// process removed node....
-    *   	}
-    *
-    * Notes:
-    *   This function does not arbitrate for access to the list.  The
-    *   calling task must be the owner of the involved list.
-    *   _Important note_:
-    *      The ln_Pred and ln_Succ pointers of the removed node are no
-    *      longer valid after removal from list. Do not use them after
-    *      removal.
-    *
-    * Bugs:
-    *   none
-    *
-    * See:
-    *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
-    *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
-    */
-    ListNode* remNodeHead() {
-        ListNode* node, second;
-        node = this.getHeadNode.getNextNode(); // Get the first node
-
-        if (!node.isNodeTail()) // Is List empty ?
-        {
-            // make second node the first
-            second = node.getNextNode();
-            second.ln_Pred = this.getHeadNode;
-            this.lh_Head = second;
-
-            version (DEBUG) {
-                node.ln_Succ = cast(void*) ODDADDR; // Trigger access to invalid memory
-                node.ln_Pred = cast(void*) ODDADDR;
-            } else {
-                node.ln_Succ = null;
-                node.ln_Pred = null;
-            }
-            return node; // return removed node or null
-        } else
-            return null;
-    }
-
-    /** addNodeTail -- insert node at the head of a list
-    *
-    * Add a node to the tail of a doubly linked list. So our node is linked
-    * after the last existing node or the HEAD node, and in front of the TAIL node.
-    * There is always a HEAD node.
-    *
-    * Params:
-    *   this - a pointer to the target list header
-    *   node - the node to insert
-    *
-    * Returns:
-    *   Your list is larger by one node and your node is added at tail of list.
-    *
-    * Example:
-    *   ListHead myList;
-    *   ListNode* myNode;
-    *   	...
-    *   	myList.addNodeTail(myNode );
-    *
-    * Notes:
-    *   This function does not arbitrate for access to the list.  The
-    *   calling task must be the owner of the involved list.
-    *
-    * Bugs:
-    *   none
-    *
-    * See:
-    *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
-    *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
-    *
-    */
-    void addNodeTail(ref ListNode node) {
-        ListNode* lastnode; // The HEAD node or the last real node of list
-
-        lastnode = this.getTailNode.getPrevNode; // Get the last real node of list or HEAD node
-
-        // Now prepare the node first
-        node.ln_Pred = lastnode; // Points to HEAD or last node
-        node.ln_Succ = this.getTailNode; // Points to TAIL node
-
-        // Now patch our node into the list
-
-        this.getTailNode.ln_Pred /* aka. lh_TailPred */  = &node; // Make our node the new last node
-        lastnode.ln_Succ = &node; // Let the previous last node point to node
-    }
-
-    /** remNodeTail -- remove node at the tail of a list
-    *
-    * Remove a node from the tail of a doubly linked list.
-    *
-    * Params:
-    *   this - the list to remove a tail node from
-    *
-    * Returns:
-    *   Your list is smaller by one node or empty. The returned value is your
-    *   removed node or null if List was empty
-    *
-    * Example:
-    *   ListHead* myList;
-    *       ...
-    *   	while ( myList.remNodeTail() )
-    *       {
-    *   		// process removed node....
-    *   	}
-    *
-    * Notes:
-    *   This function does not arbitrate for access to the list.  The
-    *   calling task must be the owner of the involved list.
-    *   _Important note_:
-    *      The ln_Pred and ln_Succ pointers of the removed node are no
-    *      longer valid after removal from list. Do not use them after
-    *      removal.
-    *
-    * Bugs:
-    *   none
-    *
-    * See:
-    *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
-    *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
-    */
-    ListNode* remNodeTail() {
-        ListNode* node, second;
-        node = this.lh_TailPred; // Get Predecessor of Tail Node
-        if (!node.isNodeHead()) // Check for Head node
-        {
-            second = node.getPrevNode(); // Get Predecessor of last node
-            second.ln_Succ = this.getTailNode; // make it last node
-            this.lh_TailPred = second; // in chain.
-
-            version (DEBUG) {
-                node.ln_Succ = cast(void*) ODDADDR; // Trigger access to invalid memory
-                node.ln_Pred = cast(void*) ODDADDR;
-            } else {
-                node.ln_Succ = null;
-                node.ln_Pred = null;
-            }
-            return node;
-        }
-        return null;
-    }
-
-    /** addNode -- insert a node into a list
-    *
-    * Insert a node into a doubly linked list AFTER a given node
-    * position.  Insertion at the head of a list is possible by passing a
-    * zero value for node, though the addNodeHead function is slightly
-    * faster for that special case.
-    *
-    * Params:
-    *   this - a pointer to the target list header
-    *   node - the node to insert
-    *   listNode - the node after which to insert
-    *
-    * Returns:
-    *   Your list is larger by one node.
-    *
-    * Example:
-    *   ListHead myList;
-    *   ListNode* myNode,listNode;
-    *   	...
-    *   	myList.addNodeHead( myNode, listNode );
-    *
-    * Notes:
-    *   This function does not arbitrate for access to the list.  The
-    *   calling task must be the owner of the involved list.
-    *
-    * Bugs:
-    *   none
-    *
-    * See:
-    *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
-    *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
-    *
-    */
-    void addNode(ref ListNode node, ListNode* listNode = null) {
-        node.addNode(this, listNode);
-    }
-
-    /** remNode -- remove a node from a list
-    *
-    * Unlink a node from whatever list it is in.  Nodes that are not part
-    * of a list must not be passed to this function!
-    *
-    * Params:
-    *   node - the node to remove
-    *
-    * Returns:
-    *   Your list is smaller by one node or empty. The returned value is your
-    *   removed node.
-    *
-    * Example:
-    *   ListNode* myList, myRemNode;
-    *   ...
-    *   myRemNode = list.remNode( myNode );		// myRemNode == myNode
-    *
-    * Notes:
-    *   This function does not arbitrate for access to the list.  The
-    *   calling task must be the owner of the involved list.
-    *   _Important note_:
-    *      The ln_Pred and ln_Succ pointers of the removed node are no
-    *      longer valid after removal from list. Do not use them after
-    *      removal.
-    *
-    * Bugs:
-    *   none
-    *
-    * See:
-    *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
-    *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
-    *
-    */
-    ListNode* remNode(ref ListNode node) {
-        return node.remNode;
-    }
-
-    /** addNodeSorted -- insert a node into a list by ln_Priority field
-    *
-    * Insert or append a node to a system queue.  The insert is
-    * performed based on the node priority -- it will keep the list
-    * properly sorted.  New nodes will be inserted in front of the first
-    * node with a lower priority.   Hence a FIFO queue for nodes of equal
-    * priority results
-    *
-    * Params:
-    *   this - a pointer to the target list header
-    *   node - the node to insert
-    *
-    * Returns:
-    *   Your list is larger by one node.
-    *
-    * Example:
-    *   ListHead myList;
-    *   ListNode* myNode;
-    *  	...
-    *  	myList.addNodeSorted( , myNode );
-    *
-    * Notes:
-    *   This function does not arbitrate for access to the list.  The
-    *   calling task must be the owner of the involved list.
-    *
-    * Bugs:
-    *   none
-    *
-    * See:
-    *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
-    *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
-    */
-    void addNodeSorted(ref ListNode node) {
-        ListNode* tnode;
-        // Search for insert position
-        for (tnode = this.getHeadNode.getNextNode; !tnode.isNodeTail; tnode = tnode.getNextNode()) {
-            if (node.ln_Priority >= tnode.ln_Priority)
-                break;
-        }
-        node.addNode(this, tnode);
-    }
-
-    /** findNode -- find a node by name
-    *
-    * Traverse a system list until a node with the given name is found.
-    * To find multiple occurrences of a string, this function may be
-    * called with a node starting point.
-    *
-    * No arbitration is done for access to the list! If multiple tasks
-    * access the same list, an arbitration mechanism such as
-    * Semaphores must be used.
-    *
-    * Params:
-    *   list - a pointer to the target list header
-    *   name - a pointer to a name string terminated with null
-    *
-    * Returns:
-    *   A pointer to the node with the same name, else
-    *   null to indicate that the string was not found.
-    *
-    * Example:
-    *   ListNode* myNode;
-    *   	...
-    *   	if ( myNode = myList.findNode("FooBar" ))
-    *   	{
-    *   		...
-    *   	}
-    *
-    * Notes:
-    *   This function does not arbitrate for access to the list.  The
-    *   calling task must be the owner of the involved list.
-    *
-    * Bugs:
-    *   none
-    *
-    * See:
-    *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
-    *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
-    *
-    */
-    ListNode* findNode(string name) {
-        for (ListNode* node = this.getHeadNode.getNextNode(); !node.isNodeTail();
-            node = node.getNextNode()) {
-            if (node.ln_Name && node.ln_Name == name)
-                return node;
-        }
-        return null;
-    }
-
-    /// opApply for foreach
-    int opApply(scope int delegate(ref ListNode) dg) {
-        for (ListNode* node = this.getHeadNode.getNextNode(); !node.isNodeTail();
-            node = node.getNextNode()) {
-
-            int result = dg(*node);
-            if (result)
-                return result;
-        }
-        return 0;
-    }
-
-    /// opApply for foreach
-    int opApply(scope int delegate(int idx, ref ListNode) dg) {
-        int idx = 0;
-        for (ListNode* node = this.getHeadNode.getNextNode(); !node.isNodeTail();
-            node = node.getNextNode()) {
-
-            int result = dg(idx++, *node);
-            if (result)
-                return result;
-        }
-        return 0;
-    }
-
-    /// Ranges D interface - Experimental
-    version (RANGEEXP) {
-
-        @property bool empty() => this.isListEmpty;
-
-        @property ListNode* front() => this.isListEmpty ? null : this.getHeadNode.getNextNode;
-        void popFront() {
-            this.remNodeHead;
-        }
-
-        @property ListNode* back() => this.isListEmpty ? null : this.getTailNode.getPrevNode;
-        void popBack() {
-            this.remNodeTail;
-        }
-
-        ref auto opIndex(size_t index) {
-            foreach (idx, ref val; this)
-                if (idx == index)
-                    return val;
-            assert(false, __PRETTY_FUNCTION__ ~ ": Out of index.");
-        }
-
-        @property size_t length() {
-            size_t len = 0;
-            foreach (idx, ref val; this)
-                len++;
-            return len;
-        }
-    }
-}
-
-/** Generator to create a ListNode on heap
- *
- * Params:
- *   type = Node type
- *   pri = Node Pri
- *   name = Node name
- * Returns:
- */
-ListHead* makeListHead(ListNodeType type = ListNodeType.LNT_UNKNOWN, string name = "") {
-    auto node = new ListHead(null, null, null, type, name);
-    node.initListHead;
-    return node;
-}
-
-@("LinkedList: Inital Very Simple Test")
-unittest {
-    import std.stdio : writeln, writefln;
-    import std.format : format;
-
-    ListHead* lh = makeListHead();
-    assert(lh.isListEmpty == true);
-
-    ListNode node1 = ListNode(null, null, ListNodeType.LNT_MEMHANDLER, 42, "Test 1");
-    assert(node1.ln_Type == ListNodeType.LNT_MEMHANDLER);
-    assert(node1.ln_Priority == 42);
-    assert(node1.ln_Name == "Test 1");
-
-    lh.addNodeHead(node1);
-    assert(lh.isListEmpty == false);
-
-    assert(node1.isNodeReal);
-    assert(node1.getPrevNode.isNodeHead);
-    assert(node1.getNextNode.isNodeTail);
-
-    ListNode node2 = ListNode(null, null, ListNodeType.LNT_AUDIO, 43, "Test 2");
-    assert(node2.ln_Type == ListNodeType.LNT_AUDIO);
-    assert(node2.ln_Priority == 43);
-    assert(node2.ln_Name == "Test 2");
-
-    lh.addNodeTail(node2);
-    assert(node2.isNodeReal);
-    assert(!node2.getPrevNode.isNodeHead);
-    assert(node2.getNextNode.isNodeTail);
-
-    int cnt = 0;
-    for (ListNode* nd = lh.getHeadNode.getNextNode; !nd.isNodeTail; nd = nd.getNextNode) {
-        cnt++;
-    }
-    assert(cnt == 2);
-
-    ListNode node3 = ListNode(null, null, ListNodeType.LNT_AUDIO, 54, "Test 3");
-    assert(node3.ln_Type == ListNodeType.LNT_AUDIO);
-    assert(node3.ln_Priority == 54);
-    assert(node3.ln_Name == "Test 3");
-
-    lh.addNode(node3, &node1);
-    assert(node3.isNodeReal);
-    assert(!node3.getPrevNode.isNodeHead);
-    assert(!node3.getNextNode.isNodeTail);
-
-    cnt = 0;
-    for (ListNode* nd = lh.getHeadNode.getNextNode; !nd.isNodeTail; nd = nd.getNextNode) {
-        cnt++;
-    }
-    assert(cnt == 3);
-
-    auto n1 = lh.findNode("Test 1");
-    assert(n1 == &node1);
-    auto n2 = lh.findNode("Test 2");
-    assert(n2 == &node2);
-    auto n3 = lh.findNode("Test 3");
-    assert(n3 == &node3);
-    auto nX = lh.findNode("Test X");
-    assert(nX == null);
-
-    ListNode node4 = ListNode(null, null, ListNodeType.LNT_AUDIO, 50, "Test 4");
-    assert(node4.ln_Type == ListNodeType.LNT_AUDIO);
-    assert(node4.ln_Priority == 50);
-    assert(node4.ln_Name == "Test 4");
-
-    lh.addNodeSorted(node4);
-
-    // foreach (idx, ref key; *lh) {
-    //     writefln("%02d : %s", idx, key);
-    // }
-    assert(node4.getPrevNode == &node1);
-    assert(node4.getNextNode == &node3);
-
-    lh.remNodeHead();
-    lh.remNodeTail();
-    lh.remNode(node4);
-    lh.remNode(node3);
-    assert(lh.isListEmpty);
-
-    foreach (short idx; 0 .. 10) {
-        auto node = makeListNode(ListNodeType.LNT_UNKNOWN, idx, format("Node%02d", idx));
-        lh.addNodeTail(*node);
-    }
-    alias DG = int delegate(ref ListNode);
-    foreach (ref key; *lh) {
-        // writefln("%s", key);
-    }
-    foreach (idx, ref key; *lh) {
-        // writefln("%02d : %s", idx, key);
-    }
-    foreach (ref key; *lh) {
-        // writefln("%s", key);
-        if (key.ln_Priority >= 2)
-            break;
-    }
-    foreach (idx, ref key; *lh) {
-        // writefln("%02d : %s", idx, key);
-        if (idx >= 2)
-            break;
-    }
-    while (lh.remNodeHead) {
-    }
-    while (lh.remNodeTail) {
-    }
-    assert(lh.isListEmpty);
-}
-
-version (RANGEEXP) {
-    @("LinkedList: Test ranges interface")
+    @("LinkedList: ListNode methods tests")
     unittest {
-        import std.algorithm;
-        import std.range;
-        import std.stdio : writefln, writeln;
+        auto node1 = makeListNode(ListNodeType.LNT_UNKNOWN, 1, "A");
+        assertThrown!AssertError(node1.remNode());
+        auto node2 = makeListNode(ListNodeType.LNT_UNKNOWN, 2, "B");
+        auto node3 = makeListNode(ListNodeType.LNT_UNKNOWN, 3, "C");
+
+        ListHead lh;
+        lh.initListHead;
+        node1.addNode(lh, lh.getTailNode); // Test special case...
+        node2.addNode(lh);
+        node3.addNode(lh);
+        int idx = 3;
+        for (ListNode* nd = lh.getHeadNode.getNextNode; !nd.isNodeTail; nd = nd.getNextNode) {
+            import std.stdio : writeln;
+
+            // writeln(*nd);
+            assert(nd.ln_Priority == idx);
+            idx--;
+        }
+        node1.remNode();
+        node3.remNode();
+        node2.remNode();
+        assert(lh.isListEmpty);
+
+        idx = 1;
+        node1.addNode(lh);
+        node2.addNode(lh, node1);
+        node3.addNode(lh, lh.getTailNode); // Test special case...
+        for (ListNode* nd = lh.getHeadNode.getNextNode; !nd.isNodeTail; nd = nd.getNextNode) {
+            import std.stdio : writeln;
+
+            // writeln(*nd);
+            assert(nd.ln_Priority == idx);
+            idx++;
+        }
+        node1.remNode();
+        node3.remNode();
+        node2.remNode();
+
+        node1 = node2 = node3 = null;
+    }
+
+    /************************************************************************
+    ** The List Header - simply two merged list nodes.
+    **
+    ** The ListHead is the Head and Tail node in a single structure.
+    **
+    **   /->Next                                  # lh_Head :    HEAD
+    **   |  Prev  Next (=PrevNext)= null          # lh_Tail :    HEAD  TAIL
+    **   \------->Prev                            # lh_TailPred:       TAIL
+    **
+    ** Note:
+    ** - head and tail pointing to each other, but the head has no predessor
+    **   and the tail node has no successor.
+    ** - The lh_Tail is always 'null'. It aliases the ln_Pred of head and the
+    **   ln_Succ of the tail node.
+    */
+    struct ListHead {
+        /* The following aliases the links of the head and tail nodes */
+        ListNode* lh_Head;
+        ListNode* lh_Tail;
+        ListNode* lh_TailPred;
+
+        /* The type and the human readable name of the list. Can be used to
+        enforce node types matching the list type. */
+        ListNodeType lh_Type;
+        string lh_Name;
+
+        /** Get the 'head node'
+        *
+        * Note: The cast operation is hidden inside this function.
+        * Returns: Ptr to the 'head node'
+        */
+        ListNode* getHeadNode() {
+            return cast(ListNode*)&(this.lh_Head);
+        }
+
+        /** Get the 'tail node'
+        *
+        * Note: The cast operation is hidden inside this function.
+        * Returns: Ptr to the 'head node'
+        */
+        ListNode* getTailNode() {
+            return cast(ListNode*)&(this.lh_Tail);
+        }
+
+        /** Is this list empty?
+        *
+        * Returns:
+        *   true if empty, false otherwise
+        */
+        bool isListEmpty() {
+            return getHeadNode.getNextNode.isNodeTail();
+        }
+
+        /** initListHead -- Inititalize a ListHead
+        *
+        * Before you can use list functions on a ListHead you must
+        * initialize the structure.
+        *
+        * Params:
+        *   list -- ptr to a uninitialized ListHead structure
+        *
+        * Returns:
+        *   An initialized ListHead.
+        *
+        * Example:
+        *   ListHead myList;
+        *   myList.initListHead();
+        *
+        * Notes:
+        *   Any information in the ListHead will be destroyed. Do not use it on
+        *   already initialized ListHeads, or you may lose the actual linked list.
+        *
+        * Bugs:
+        *   none
+        *
+        * See:
+        *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
+        *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
+        */
+        void initListHead() {
+            this.lh_Head = this.getTailNode;
+            this.lh_Tail = null;
+            this.lh_TailPred = this.getHeadNode;
+        }
+
+        /** addNodeHead -- insert node at the head of a list
+        *
+        * Add a node to the head of a doubly linked list. The code links
+        * the node after the HEAD node and in front of the existing nodes.
+        * There is always a TAIL node at least.
+        *
+        * Params:
+        *   this - a pointer to the target list header
+        *   node - the node to insert
+        *
+        * Returns:
+        *   Your list is larger by one node.
+        *
+        * Example:
+        *   ListHead myList;
+        *   ListNode* myNode;
+        *   ...
+        * 	myList.addNodeHead( myNode );
+        *
+        * Notes:
+        *   This function does not arbitrate for access to the list.  The
+        *   calling task must be the owner of the involved list.
+        *
+        * Bugs:
+        *   none
+        *
+        * See:
+        *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
+        *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
+        */
+        void addNodeHead(ref ListNode node) {
+            ListNode* oldFirstNode;
+
+            oldFirstNode = this.getHeadNode.getNextNode;
+
+            // Setup the links of the node to add
+            node.ln_Pred = this.getHeadNode;
+            node.ln_Succ = oldFirstNode;
+
+            // Ok, now patch our node into the existing list
+            this.lh_Head = &node;
+            oldFirstNode.ln_Pred = &node;
+
+            // Now node should be first node of List.
+        }
+
+        /** remNodeHead -- remove node at the head of a list
+        *
+        * Remove a node to the head of a doubly linked list.
+        *
+        * Params:
+        *   this - the list to remove a head node from
+        *
+        * Returns:
+        *   Your list is smaller by one node or empty. The returned value is your
+        *   removed node or null if List was empty
+        *
+        * Example:
+        *   ListHead* myList;
+        *       ...
+        *   	while ( myList.remNodeHead() )
+        *       {
+        *   		// process removed node....
+        *   	}
+        *
+        * Notes:
+        *   This function does not arbitrate for access to the list.  The
+        *   calling task must be the owner of the involved list.
+        *   _Important note_:
+        *      The ln_Pred and ln_Succ pointers of the removed node are no
+        *      longer valid after removal from list. Do not use them after
+        *      removal.
+        *
+        * Bugs:
+        *   none
+        *
+        * See:
+        *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
+        *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
+        */
+        ListNode* remNodeHead() {
+            ListNode* node, second;
+            node = this.getHeadNode.getNextNode(); // Get the first node
+
+            if (!node.isNodeTail()) // Is List empty ?
+            {
+                // make second node the first
+                second = node.getNextNode();
+                second.ln_Pred = this.getHeadNode;
+                this.lh_Head = second;
+
+                version (DEBUG) {
+                    node.ln_Succ = cast(void*) ODDADDR; // Trigger access to invalid memory
+                    node.ln_Pred = cast(void*) ODDADDR;
+                } else {
+                    node.ln_Succ = null;
+                    node.ln_Pred = null;
+                }
+                return node; // return removed node or null
+            } else
+                return null;
+        }
+
+        /** addNodeTail -- insert node at the head of a list
+        *
+        * Add a node to the tail of a doubly linked list. So our node is linked
+        * after the last existing node or the HEAD node, and in front of the TAIL node.
+        * There is always a HEAD node.
+        *
+        * Params:
+        *   this - a pointer to the target list header
+        *   node - the node to insert
+        *
+        * Returns:
+        *   Your list is larger by one node and your node is added at tail of list.
+        *
+        * Example:
+        *   ListHead myList;
+        *   ListNode* myNode;
+        *   	...
+        *   	myList.addNodeTail(myNode );
+        *
+        * Notes:
+        *   This function does not arbitrate for access to the list.  The
+        *   calling task must be the owner of the involved list.
+        *
+        * Bugs:
+        *   none
+        *
+        * See:
+        *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
+        *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
+        *
+        */
+        void addNodeTail(ref ListNode node) {
+            ListNode* lastnode; // The HEAD node or the last real node of list
+
+            lastnode = this.getTailNode.getPrevNode; // Get the last real node of list or HEAD node
+
+            // Now prepare the node first
+            node.ln_Pred = lastnode; // Points to HEAD or last node
+            node.ln_Succ = this.getTailNode; // Points to TAIL node
+
+            // Now patch our node into the list
+
+            this.getTailNode.ln_Pred /* aka. lh_TailPred */  = &node; // Make our node the new last node
+            lastnode.ln_Succ = &node; // Let the previous last node point to node
+        }
+
+        /** remNodeTail -- remove node at the tail of a list
+        *
+        * Remove a node from the tail of a doubly linked list.
+        *
+        * Params:
+        *   this - the list to remove a tail node from
+        *
+        * Returns:
+        *   Your list is smaller by one node or empty. The returned value is your
+        *   removed node or null if List was empty
+        *
+        * Example:
+        *   ListHead* myList;
+        *       ...
+        *   	while ( myList.remNodeTail() )
+        *       {
+        *   		// process removed node....
+        *   	}
+        *
+        * Notes:
+        *   This function does not arbitrate for access to the list.  The
+        *   calling task must be the owner of the involved list.
+        *   _Important note_:
+        *      The ln_Pred and ln_Succ pointers of the removed node are no
+        *      longer valid after removal from list. Do not use them after
+        *      removal.
+        *
+        * Bugs:
+        *   none
+        *
+        * See:
+        *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
+        *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
+        */
+        ListNode* remNodeTail() {
+            ListNode* node, second;
+            node = this.lh_TailPred; // Get Predecessor of Tail Node
+            if (!node.isNodeHead()) // Check for Head node
+            {
+                second = node.getPrevNode(); // Get Predecessor of last node
+                second.ln_Succ = this.getTailNode; // make it last node
+                this.lh_TailPred = second; // in chain.
+
+                version (DEBUG) {
+                    node.ln_Succ = cast(void*) ODDADDR; // Trigger access to invalid memory
+                    node.ln_Pred = cast(void*) ODDADDR;
+                } else {
+                    node.ln_Succ = null;
+                    node.ln_Pred = null;
+                }
+                return node;
+            }
+            return null;
+        }
+
+        /** addNode -- insert a node into a list
+        *
+        * Insert a node into a doubly linked list AFTER a given node
+        * position.  Insertion at the head of a list is possible by passing a
+        * zero value for node, though the addNodeHead function is slightly
+        * faster for that special case.
+        *
+        * Params:
+        *   this - a pointer to the target list header
+        *   node - the node to insert
+        *   listNode - the node after which to insert
+        *
+        * Returns:
+        *   Your list is larger by one node.
+        *
+        * Example:
+        *   ListHead myList;
+        *   ListNode* myNode,listNode;
+        *   	...
+        *   	myList.addNodeHead( myNode, listNode );
+        *
+        * Notes:
+        *   This function does not arbitrate for access to the list.  The
+        *   calling task must be the owner of the involved list.
+        *
+        * Bugs:
+        *   none
+        *
+        * See:
+        *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
+        *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
+        *
+        */
+        void addNode(ref ListNode node, ListNode* listNode = null) {
+            node.addNode(this, listNode);
+        }
+
+        /** remNode -- remove a node from a list
+        *
+        * Unlink a node from whatever list it is in.  Nodes that are not part
+        * of a list must not be passed to this function!
+        *
+        * Params:
+        *   node - the node to remove
+        *
+        * Returns:
+        *   Your list is smaller by one node or empty. The returned value is your
+        *   removed node.
+        *
+        * Example:
+        *   ListNode* myList, myRemNode;
+        *   ...
+        *   myRemNode = list.remNode( myNode );		// myRemNode == myNode
+        *
+        * Notes:
+        *   This function does not arbitrate for access to the list.  The
+        *   calling task must be the owner of the involved list.
+        *   _Important note_:
+        *      The ln_Pred and ln_Succ pointers of the removed node are no
+        *      longer valid after removal from list. Do not use them after
+        *      removal.
+        *
+        * Bugs:
+        *   none
+        *
+        * See:
+        *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
+        *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
+        *
+        */
+        ListNode* remNode(ref ListNode node) {
+            return node.remNode;
+        }
+
+        /** addNodeSorted -- insert a node into a list by ln_Priority field
+        *
+        * Insert or append a node to a system queue.  The insert is
+        * performed based on the node priority -- it will keep the list
+        * properly sorted.  New nodes will be inserted in front of the first
+        * node with a lower priority.   Hence a FIFO queue for nodes of equal
+        * priority results
+        *
+        * Params:
+        *   this - a pointer to the target list header
+        *   node - the node to insert
+        *
+        * Returns:
+        *   Your list is larger by one node.
+        *
+        * Example:
+        *   ListHead myList;
+        *   ListNode* myNode;
+        *  	...
+        *  	myList.addNodeSorted( , myNode );
+        *
+        * Notes:
+        *   This function does not arbitrate for access to the list.  The
+        *   calling task must be the owner of the involved list.
+        *
+        * Bugs:
+        *   none
+        *
+        * See:
+        *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
+        *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
+        */
+        void addNodeSorted(ref ListNode node) {
+            ListNode* tnode;
+            // Search for insert position
+            for (tnode = this.getHeadNode.getNextNode; !tnode.isNodeTail; tnode = tnode.getNextNode()) {
+                if (node.ln_Priority >= tnode.ln_Priority)
+                    break;
+            }
+            node.addNode(this, tnode);
+        }
+
+        /** findNode -- find a node by name
+        *
+        * Traverse a system list until a node with the given name is found.
+        * To find multiple occurrences of a string, this function may be
+        * called with a node starting point.
+        *
+        * No arbitration is done for access to the list! If multiple tasks
+        * access the same list, an arbitration mechanism such as
+        * Semaphores must be used.
+        *
+        * Params:
+        *   list - a pointer to the target list header
+        *   name - a pointer to a name string terminated with null
+        *
+        * Returns:
+        *   A pointer to the node with the same name, else
+        *   null to indicate that the string was not found.
+        *
+        * Example:
+        *   ListNode* myNode;
+        *   	...
+        *   	if ( myNode = myList.findNode("FooBar" ))
+        *   	{
+        *   		...
+        *   	}
+        *
+        * Notes:
+        *   This function does not arbitrate for access to the list.  The
+        *   calling task must be the owner of the involved list.
+        *
+        * Bugs:
+        *   none
+        *
+        * See:
+        *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
+        *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
+        *
+        */
+        ListNode* findNode(string name) {
+            for (ListNode* node = this.getHeadNode.getNextNode(); !node.isNodeTail();
+                node = node.getNextNode()) {
+                if (node.ln_Name && node.ln_Name == name)
+                    return node;
+            }
+            return null;
+        }
+
+        /// opApply for foreach
+        int opApply(scope int delegate(ref ListNode) dg) {
+            for (ListNode* node = this.getHeadNode.getNextNode(); !node.isNodeTail();
+                node = node.getNextNode()) {
+
+                int result = dg(*node);
+                if (result)
+                    return result;
+            }
+            return 0;
+        }
+
+        /// opApply for foreach
+        int opApply(scope int delegate(int idx, ref ListNode) dg) {
+            int idx = 0;
+            for (ListNode* node = this.getHeadNode.getNextNode(); !node.isNodeTail();
+                node = node.getNextNode()) {
+
+                int result = dg(idx++, *node);
+                if (result)
+                    return result;
+            }
+            return 0;
+        }
+
+        /// Ranges D interface - Experimental
+        version (RANGEEXP) {
+
+            @property bool empty() => this.isListEmpty;
+
+            @property ListNode* front() => this.isListEmpty ? null : this.getHeadNode.getNextNode;
+            void popFront() {
+                this.remNodeHead;
+            }
+
+            @property ListNode* back() => this.isListEmpty ? null : this.getTailNode.getPrevNode;
+            void popBack() {
+                this.remNodeTail;
+            }
+
+            ref auto opIndex(size_t index) {
+                foreach (idx, ref val; this)
+                    if (idx == index)
+                        return val;
+                assert(false, __PRETTY_FUNCTION__ ~ ": Out of index.");
+            }
+
+            @property size_t length() {
+                size_t len = 0;
+                foreach (idx, ref val; this)
+                    len++;
+                return len;
+            }
+        }
+    }
+
+    /** Generator to create a ListNode on heap
+    *
+    * Params:
+    *   type = Node type
+    *   pri = Node Pri
+    *   name = Node name
+    * Returns:
+    */
+    static ListHead* makeListHead(ListNodeType type = ListNodeType.LNT_UNKNOWN, string name = "") {
+        auto node = new ListHead(null, null, null, type, name);
+        node.initListHead;
+        return node;
+    }
+
+    @("LinkedList: Inital Very Simple Test")
+    unittest {
+        import std.stdio : writeln, writefln;
         import std.format : format;
 
-        static assert(!hasLength!(ListHead));
-        static assert(isInputRange!ListHead);
-        static assert(!isOutputRange!(ListHead, ListHead));
-        static assert(!isForwardRange!ListHead);
-        static assert(!isBidirectionalRange!ListHead);
-        static assert(!isRandomAccessRange!ListHead);
+        ListHead* lh = makeListHead();
+        assert(lh.isListEmpty == true);
 
-        ListHead lh1;
-        lh1.initListHead;
+        ListNode node1 = ListNode(null, null, ListNodeType.LNT_MEMHANDLER, 42, "Test 1");
+        assert(node1.ln_Type == ListNodeType.LNT_MEMHANDLER);
+        assert(node1.ln_Priority == 42);
+        assert(node1.ln_Name == "Test 1");
+
+        lh.addNodeHead(node1);
+        assert(lh.isListEmpty == false);
+
+        assert(node1.isNodeReal);
+        assert(node1.getPrevNode.isNodeHead);
+        assert(node1.getNextNode.isNodeTail);
+
+        ListNode node2 = ListNode(null, null, ListNodeType.LNT_AUDIO, 43, "Test 2");
+        assert(node2.ln_Type == ListNodeType.LNT_AUDIO);
+        assert(node2.ln_Priority == 43);
+        assert(node2.ln_Name == "Test 2");
+
+        lh.addNodeTail(node2);
+        assert(node2.isNodeReal);
+        assert(!node2.getPrevNode.isNodeHead);
+        assert(node2.getNextNode.isNodeTail);
+
+        int cnt = 0;
+        for (ListNode* nd = lh.getHeadNode.getNextNode; !nd.isNodeTail; nd = nd.getNextNode) {
+            cnt++;
+        }
+        assert(cnt == 2);
+
+        ListNode node3 = ListNode(null, null, ListNodeType.LNT_AUDIO, 54, "Test 3");
+        assert(node3.ln_Type == ListNodeType.LNT_AUDIO);
+        assert(node3.ln_Priority == 54);
+        assert(node3.ln_Name == "Test 3");
+
+        lh.addNode(node3, &node1);
+        assert(node3.isNodeReal);
+        assert(!node3.getPrevNode.isNodeHead);
+        assert(!node3.getNextNode.isNodeTail);
+
+        cnt = 0;
+        for (ListNode* nd = lh.getHeadNode.getNextNode; !nd.isNodeTail; nd = nd.getNextNode) {
+            cnt++;
+        }
+        assert(cnt == 3);
+
+        auto n1 = lh.findNode("Test 1");
+        assert(n1 == &node1);
+        auto n2 = lh.findNode("Test 2");
+        assert(n2 == &node2);
+        auto n3 = lh.findNode("Test 3");
+        assert(n3 == &node3);
+        auto nX = lh.findNode("Test X");
+        assert(nX == null);
+
+        ListNode node4 = ListNode(null, null, ListNodeType.LNT_AUDIO, 50, "Test 4");
+        assert(node4.ln_Type == ListNodeType.LNT_AUDIO);
+        assert(node4.ln_Priority == 50);
+        assert(node4.ln_Name == "Test 4");
+
+        lh.addNodeSorted(node4);
+
+        // foreach (idx, ref key; *lh) {
+        //     writefln("%02d : %s", idx, key);
+        // }
+        assert(node4.getPrevNode == &node1);
+        assert(node4.getNextNode == &node3);
+
+        lh.remNodeHead();
+        lh.remNodeTail();
+        lh.remNode(node4);
+        lh.remNode(node3);
+        assert(lh.isListEmpty);
+
         foreach (short idx; 0 .. 10) {
             auto node = makeListNode(ListNodeType.LNT_UNKNOWN, idx, format("Node%02d", idx));
-            writefln("%02d:A %s", idx, *node);
-            lh1.addNodeTail(*node);
+            lh.addNodeTail(*node);
         }
-
-        ListHead lh2;
-        lh2.initListHead;
-        foreach (short idx; 20 .. 30) {
-            auto node = makeListNode(ListNodeType.LNT_UNKNOWN, idx, format("Node%02d", idx));
-            writefln("%02d:B %s", idx, *node);
-            lh2.addNodeTail(*node);
+        alias DG = int delegate(ref ListNode);
+        foreach (ref key; *lh) {
+            // writefln("%s", key);
         }
-
-// TODO: Find out what happens here.
-
-        ListHead lh3;
-        lh3.initListHead;
-        foreach (node; chain(lh1, lh2)) {
-            lh3.addNodeTail(*node);
-            writefln("%02d:C %s", 0, *node);
+        foreach (idx, ref key; *lh) {
+            // writefln("%02d : %s", idx, key);
         }
+        foreach (ref key; *lh) {
+            // writefln("%s", key);
+            if (key.ln_Priority >= 2)
+                break;
+        }
+        foreach (idx, ref key; *lh) {
+            // writefln("%02d : %s", idx, key);
+            if (idx >= 2)
+                break;
+        }
+        while (lh.remNodeHead) {
+        }
+        while (lh.remNodeTail) {
+        }
+        assert(lh.isListEmpty);
+    }
 
-        // writefln("Length = %d", lh3.length);
-        // assert (lh3.length == 20);
+    version (RANGEEXP) {
+        @("LinkedList: Test ranges interface")
+        unittest {
+            import std.algorithm;
+            import std.range;
+            import std.stdio : writefln, writeln;
+            import std.format : format;
 
-        foreach (idx, ref node; lh3.enumerate) {
-            writefln("%02d: %s", idx, *node);
+            static assert(!hasLength!(ListHead));
+            static assert(isInputRange!ListHead);
+            static assert(!isOutputRange!(ListHead, ListHead));
+            static assert(!isForwardRange!ListHead);
+            static assert(!isBidirectionalRange!ListHead);
+            static assert(!isRandomAccessRange!ListHead);
+
+            ListHead lh1;
+            lh1.initListHead;
+            foreach (short idx; 0 .. 10) {
+                auto node = makeListNode(ListNodeType.LNT_UNKNOWN, idx, format("Node%02d", idx));
+                writefln("%02d:A %s", idx, *node);
+                lh1.addNodeTail(*node);
+            }
+
+            ListHead lh2;
+            lh2.initListHead;
+            foreach (short idx; 20 .. 30) {
+                auto node = makeListNode(ListNodeType.LNT_UNKNOWN, idx, format("Node%02d", idx));
+                writefln("%02d:B %s", idx, *node);
+                lh2.addNodeTail(*node);
+            }
+
+            // TODO: Find out what happens here.
+
+            ListHead lh3;
+            lh3.initListHead;
+            foreach (node; chain(lh1, lh2)) {
+                lh3.addNodeTail(*node);
+                writefln("%02d:C %s", 0, *node);
+            }
+
+            // writefln("Length = %d", lh3.length);
+            // assert (lh3.length == 20);
+
+            foreach (idx, ref node; lh3.enumerate) {
+                writefln("%02d: %s", idx, *node);
+            }
         }
     }
 }
