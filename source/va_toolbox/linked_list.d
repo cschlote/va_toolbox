@@ -15,8 +15,6 @@ import std.exception;
 ** simple specific search, or later replacement. You should use this for your
 ** code too.
 */
-enum bool enableDebug = false;
-enum size_t ODDADDR = 0xdeadcaff;
 
 /*************************************************************************
 ** Type definitions for ListNodes, should always be set
@@ -159,11 +157,7 @@ struct LinkedList(bool hasExtras = true) {
         *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
         */
         void addNode(scope ref LinkedListHead list, scope LinkedListNode* listNode = null) {
-            static if (enableDebug) {
-                assert(this.ln_Succ == cast(LinkedListNode*)ODDADDR && this.ln_Pred == cast(LinkedListNode*)ODDADDR, __PRETTY_FUNCTION__ ~ ": Node already added?");
-            } else {
-                assert(this.ln_Succ == null && this.ln_Pred == null, __PRETTY_FUNCTION__ ~ ": Node already added?");
-            }
+            assert(this.ln_Succ == null && this.ln_Pred == null, __PRETTY_FUNCTION__ ~ ": Node already added?");
 
             LinkedListNode* next;
 
@@ -229,13 +223,10 @@ struct LinkedList(bool hasExtras = true) {
             nextnode.ln_Pred = prevnode;
 
             // Debug hack to trigger list handling bugs in user code
-            static if (enableDebug) {
-                this.ln_Succ = cast(LinkedListNode*) ODDADDR; // Trigger access to invalid odd memory address
-                this.ln_Pred = cast(LinkedListNode*) ODDADDR;
-            } else {
+
                 this.ln_Succ = null;
                 this.ln_Pred = null;
-            }
+
             return &this;
         }
     }
@@ -418,13 +409,10 @@ struct LinkedList(bool hasExtras = true) {
                 second.ln_Pred = this.getHeadNode;
                 this.lh_Head = second;
 
-                static if (enableDebug) {
-                    node.ln_Succ = cast(LinkedListNode*) ODDADDR; // Trigger access to invalid memory
-                    node.ln_Pred = cast(LinkedListNode*) ODDADDR;
-                } else {
+
                     node.ln_Succ = null;
                     node.ln_Pred = null;
-                }
+
                 return node; // return removed node or null
             } else
                 return null;
@@ -519,13 +507,10 @@ struct LinkedList(bool hasExtras = true) {
                 second.ln_Succ = this.getTailNode; // make it last node
                 this.lh_TailPred = second; // in chain.
 
-                static if (enableDebug) {
-                    node.ln_Succ = cast(LinkedListNode*) ODDADDR; // Trigger access to invalid memory
-                    node.ln_Pred = cast(LinkedListNode*) ODDADDR;
-                } else {
+
                     node.ln_Succ = null;
                     node.ln_Pred = null;
-                }
+
                 return node;
             }
             return null;
@@ -564,7 +549,7 @@ struct LinkedList(bool hasExtras = true) {
         *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
         *
         */
-        void addNode(ref LinkedListNode node, LinkedListNode* listNode = null) {
+        void addNode(scope ref LinkedListNode node, scope LinkedListNode* listNode = null) {
             node.addNode(this, listNode);
         }
 
@@ -694,7 +679,37 @@ struct LinkedList(bool hasExtras = true) {
                 }
                 return null;
             }
+
+            /** Generator to create a ListHead on heap */
+            static LinkedListHead* makeHead(ListNodeType type = ListNodeType.LNT_UNKNOWN, string name = "") {
+                auto head = new LinkedListHead(null, null, null, type, name);
+                head.initListHead;
+                return head;
+            }
+
+            static ListNode* makeNode(ListNodeType type = ListNodeType.LNT_UNKNOWN, short pri = 0, string name = "") {
+
+                    auto node = new LinkedListNode(null, null, type, pri, name);
+
+                return node;
+            }
+        } else {
+            /** Generator to create a ListHead on heap */
+            static LinkedListHead* makeHead() {
+                auto head = new LinkedListHead();
+                head.initListHead;
+                return head;
+            }
+
+            /** Generator to create a ListNode on heap, optionally setting other fields */
+            static LinkedListNode* makeNode() {
+
+                    auto node = new LinkedListNode(null, null);
+
+                return node;
+            }
         }
+
         /// opApply for foreach
         int opApply(scope int delegate(ref LinkedListNode) dg) {
             for (LinkedListNode* node = this.getHeadNode.getNextNode(); !node.isNodeTail();
@@ -763,188 +778,217 @@ alias TinyList = LinkedList!false;
 alias TinyNode = TinyList.LinkedListNode;
 alias TinyHead = TinyList.LinkedListHead;
 
-/** Generator to create a ListNode on heap, optionally setting other fields
-*
-* Params:
-*   type = Node type
-*   pri = Node Pri
-*   name = Node name
-* Returns:
-*/
-ListNode* makeListNode(ListNodeType type = ListNodeType.LNT_UNKNOWN, short pri = 0, string name = "") {
-    static if (enableDebug) {
-        auto node = new ListNode(cast(ListNode*)ODDADDR, cast(ListNode*)ODDADDR, type, pri, name);
-    } else {
-        auto node = new ListNode(null, null, type, pri, name);
-    }
-    return node;
-}
-
 /* ---------------------------------------------------------------------*/
 
-@("LinkedList: ListNode methods tests")
+version (unittest) {
+    void testLinkedListNode(T)() {
+        auto lh = T.LinkedListHead.makeHead;
+
+        static if (is(T == List)) {
+            auto node1 = lh.makeNode(ListNodeType.LNT_UNKNOWN, 1, "A");
+            assertThrown!AssertError(node1.remNode());
+            auto node2 = lh.makeNode(ListNodeType.LNT_UNKNOWN, 2, "B");
+            auto node3 = lh.makeNode(ListNodeType.LNT_UNKNOWN, 3, "C");
+        } else {
+            auto node1 = lh.makeNode();
+            assertThrown!AssertError(node1.remNode());
+            auto node2 = lh.makeNode();
+            auto node3 = lh.makeNode();
+        }
+
+        node1.addNode(*lh, lh.getTailNode); // Test special case...
+        node2.addNode(*lh);
+        node3.addNode(*lh);
+        int idx = 3;
+        for (auto nd = lh.getHeadNode.getNextNode; !nd.isNodeTail; nd = nd.getNextNode) {
+            import std.stdio : writeln;
+
+            // writeln(*nd);
+            static if (is(T == List)) {
+                assert(nd.ln_Priority == idx);
+            }
+            idx--;
+        }
+        node1.remNode();
+        node3.remNode();
+        node2.remNode();
+        assert(lh.isListEmpty);
+
+        idx = 1;
+        node1.addNode(*lh);
+        node2.addNode(*lh, node1);
+        node3.addNode(*lh, lh.getTailNode); // Test special case...
+        for (auto nd = lh.getHeadNode.getNextNode; !nd.isNodeTail; nd = nd.getNextNode) {
+            import std.stdio : writeln;
+
+            // writeln(*nd);
+            static if (is(T == List)) {
+                assert(nd.ln_Priority == idx);
+            }
+            idx++;
+        }
+        node1.remNode();
+        node3.remNode();
+        node2.remNode();
+
+        node1 = node2 = node3 = null;
+
+    }
+}
+@("LinkedList: TinyList node methods tests")
 unittest {
-    auto node1 = makeListNode(ListNodeType.LNT_UNKNOWN, 1, "A");
-    assertThrown!AssertError(node1.remNode());
-    auto node2 = makeListNode(ListNodeType.LNT_UNKNOWN, 2, "B");
-    auto node3 = makeListNode(ListNodeType.LNT_UNKNOWN, 3, "C");
-
-    ListHead lh;
-    lh.initListHead;
-    node1.addNode(lh, lh.getTailNode); // Test special case...
-    node2.addNode(lh);
-    node3.addNode(lh);
-    int idx = 3;
-    for (ListNode* nd = lh.getHeadNode.getNextNode; !nd.isNodeTail; nd = nd.getNextNode) {
-        import std.stdio : writeln;
-
-        // writeln(*nd);
-        assert(nd.ln_Priority == idx);
-        idx--;
-    }
-    node1.remNode();
-    node3.remNode();
-    node2.remNode();
-    assert(lh.isListEmpty);
-
-    idx = 1;
-    node1.addNode(lh);
-    node2.addNode(lh, node1);
-    node3.addNode(lh, lh.getTailNode); // Test special case...
-    for (ListNode* nd = lh.getHeadNode.getNextNode; !nd.isNodeTail; nd = nd.getNextNode) {
-        import std.stdio : writeln;
-
-        // writeln(*nd);
-        assert(nd.ln_Priority == idx);
-        idx++;
-    }
-    node1.remNode();
-    node3.remNode();
-    node2.remNode();
-
-    node1 = node2 = node3 = null;
+    testLinkedListNode!TinyList();
 }
 
-/** Generator to create a ListNode on heap
-*
-* Params:
-*   type = Node type
-*   pri = Node Pri
-*   name = Node name
-* Returns:
-*/
-ListHead* makeListHead(ListNodeType type = ListNodeType.LNT_UNKNOWN, string name = "") {
-    auto node = new ListHead(null, null, null, type, name);
-    node.initListHead;
-    return node;
+@("LinkedList: List node methods tests")
+unittest {
+    testLinkedListNode!List();
 }
 
-@("LinkedList: Inital Very Simple Test")
+version (unittest) {
+    void testLinkedListHead(T)() {
+        import std.stdio : writeln, writefln;
+        import std.format : format;
+
+        auto lh = T.LinkedListHead.makeHead();
+        assert(lh.isListEmpty == true);
+        assert(lh.headNode == *lh.getHeadNode);
+        assert(lh.tailNode == *lh.getTailNode);
+
+        static if (is(T == List)) {
+            auto node1 = T.LinkedListNode(null, null, ListNodeType.LNT_MEMHANDLER, 42, "Test 1");
+            assert(node1.ln_Type == ListNodeType.LNT_MEMHANDLER);
+            assert(node1.ln_Priority == 42);
+            assert(node1.ln_Name == "Test 1");
+        } else {
+            auto node1 = T.LinkedListNode();
+        }
+
+        lh.addNodeHead(node1);
+        assert(lh.isListEmpty == false);
+
+        assert(node1.isNodeReal);
+        assert(node1.getPrevNode.isNodeHead);
+        assert(node1.getNextNode.isNodeTail);
+
+        static if (is(T == List)) {
+            auto node2 = T.LinkedListNode(null, null, ListNodeType.LNT_AUDIO, 43, "Test 2");
+            assert(node2.ln_Type == ListNodeType.LNT_AUDIO);
+            assert(node2.ln_Priority == 43);
+            assert(node2.ln_Name == "Test 2");
+        } else {
+            auto node2 = T.LinkedListNode();
+        }
+
+        lh.addNodeTail(node2);
+        assert(node2.isNodeReal);
+        assert(!node2.getPrevNode.isNodeHead);
+        assert(node2.getNextNode.isNodeTail);
+
+        int cnt = 0;
+        for (T.LinkedListNode* nd = lh.getHeadNode.getNextNode; !nd.isNodeTail; nd = nd.getNextNode) {
+            cnt++;
+        }
+        assert(cnt == 2);
+
+        static if (is(T == List)) {
+            auto node3 = T.LinkedListNode(null, null, ListNodeType.LNT_AUDIO, 54, "Test 3");
+            assert(node3.ln_Type == ListNodeType.LNT_AUDIO);
+            assert(node3.ln_Priority == 54);
+            assert(node3.ln_Name == "Test 3");
+        } else {
+            auto node3 = T.LinkedListNode();
+        }
+
+        lh.addNode(node3, &node1);
+        assert(node3.isNodeReal);
+        assert(!node3.getPrevNode.isNodeHead);
+        assert(!node3.getNextNode.isNodeTail);
+
+        cnt = 0;
+        for (T.LinkedListNode* nd = lh.getHeadNode.getNextNode; !nd.isNodeTail; nd = nd.getNextNode) {
+            cnt++;
+        }
+        assert(cnt == 3);
+
+        static if (is(T == List)) {
+            auto n1 = lh.findNode("Test 1");
+            assert(n1 == &node1);
+            auto n2 = lh.findNode("Test 2");
+            assert(n2 == &node2);
+            auto n3 = lh.findNode("Test 3");
+            assert(n3 == &node3);
+            auto nX = lh.findNode("Test X");
+            assert(nX == null);
+        }
+
+        static if (is(T == List)) {
+            ListNode node4 = ListNode(null, null, ListNodeType.LNT_AUDIO, 50, "Test 4");
+            assert(node4.ln_Type == ListNodeType.LNT_AUDIO);
+            assert(node4.ln_Priority == 50);
+            assert(node4.ln_Name == "Test 4");
+
+            lh.addNodeSorted(node4);
+            assert(node4.getPrevNode == &node1);
+            assert(node4.getNextNode == &node3);
+        } else {
+            auto node4 = T.LinkedListNode();
+
+            lh.addNode(node4, &node1);
+        }
+
+        lh.remNodeHead();
+        lh.remNodeTail();
+        lh.remNode(node4);
+        lh.remNode(node3);
+        assert(lh.isListEmpty);
+
+        foreach (short idx; 0 .. 10) {
+            static if (is(T == List)) {
+                auto node = lh.makeNode(ListNodeType.LNT_UNKNOWN, idx, format("Node%02d", idx));
+            } else {
+                auto node = lh.makeNode();
+            }
+            lh.addNodeTail(*node);
+        }
+        alias DG = int delegate(ref ListNode);
+        foreach (ref key; *lh) {
+            // writefln("%s", key);
+        }
+        foreach (idx, ref key; *lh) {
+            // writefln("%02d : %s", idx, key);
+        }
+        int i = 0;
+        foreach (ref key; *lh) {
+            // writefln("%s", key);
+            static if (is(T == List)) {
+                if (key.ln_Priority >= 2)
+                    break;
+            } else {
+                if (i++ > 2)
+                    break;
+            }
+        }
+        foreach (idx, ref key; *lh) {
+            // writefln("%02d : %s", idx, key);
+            if (idx >= 2)
+                break;
+        }
+        while (lh.remNodeHead) {
+        }
+        while (lh.remNodeTail) {
+        }
+        assert(lh.isListEmpty);
+    }
+}
+@("LinkedList: TinyList methods tests")
 unittest {
-    import std.stdio : writeln, writefln;
-    import std.format : format;
+    testLinkedListHead!TinyList();
+}
 
-    ListHead* lh = makeListHead();
-    assert(lh.isListEmpty == true);
-
-    ListNode node1 = ListNode(null, null, ListNodeType.LNT_MEMHANDLER, 42, "Test 1");
-    assert(node1.ln_Type == ListNodeType.LNT_MEMHANDLER);
-    assert(node1.ln_Priority == 42);
-    assert(node1.ln_Name == "Test 1");
-
-    lh.addNodeHead(node1);
-    assert(lh.isListEmpty == false);
-
-    assert(node1.isNodeReal);
-    assert(node1.getPrevNode.isNodeHead);
-    assert(node1.getNextNode.isNodeTail);
-
-    ListNode node2 = ListNode(null, null, ListNodeType.LNT_AUDIO, 43, "Test 2");
-    assert(node2.ln_Type == ListNodeType.LNT_AUDIO);
-    assert(node2.ln_Priority == 43);
-    assert(node2.ln_Name == "Test 2");
-
-    lh.addNodeTail(node2);
-    assert(node2.isNodeReal);
-    assert(!node2.getPrevNode.isNodeHead);
-    assert(node2.getNextNode.isNodeTail);
-
-    int cnt = 0;
-    for (ListNode* nd = lh.getHeadNode.getNextNode; !nd.isNodeTail; nd = nd.getNextNode) {
-        cnt++;
-    }
-    assert(cnt == 2);
-
-    ListNode node3 = ListNode(null, null, ListNodeType.LNT_AUDIO, 54, "Test 3");
-    assert(node3.ln_Type == ListNodeType.LNT_AUDIO);
-    assert(node3.ln_Priority == 54);
-    assert(node3.ln_Name == "Test 3");
-
-    lh.addNode(node3, &node1);
-    assert(node3.isNodeReal);
-    assert(!node3.getPrevNode.isNodeHead);
-    assert(!node3.getNextNode.isNodeTail);
-
-    cnt = 0;
-    for (ListNode* nd = lh.getHeadNode.getNextNode; !nd.isNodeTail; nd = nd.getNextNode) {
-        cnt++;
-    }
-    assert(cnt == 3);
-
-    auto n1 = lh.findNode("Test 1");
-    assert(n1 == &node1);
-    auto n2 = lh.findNode("Test 2");
-    assert(n2 == &node2);
-    auto n3 = lh.findNode("Test 3");
-    assert(n3 == &node3);
-    auto nX = lh.findNode("Test X");
-    assert(nX == null);
-
-    ListNode node4 = ListNode(null, null, ListNodeType.LNT_AUDIO, 50, "Test 4");
-    assert(node4.ln_Type == ListNodeType.LNT_AUDIO);
-    assert(node4.ln_Priority == 50);
-    assert(node4.ln_Name == "Test 4");
-
-    lh.addNodeSorted(node4);
-
-    // foreach (idx, ref key; *lh) {
-    //     writefln("%02d : %s", idx, key);
-    // }
-    assert(node4.getPrevNode == &node1);
-    assert(node4.getNextNode == &node3);
-
-    lh.remNodeHead();
-    lh.remNodeTail();
-    lh.remNode(node4);
-    lh.remNode(node3);
-    assert(lh.isListEmpty);
-
-    foreach (short idx; 0 .. 10) {
-        auto node = makeListNode(ListNodeType.LNT_UNKNOWN, idx, format("Node%02d", idx));
-        lh.addNodeTail(*node);
-    }
-    alias DG = int delegate(ref ListNode);
-    foreach (ref key; *lh) {
-        // writefln("%s", key);
-    }
-    foreach (idx, ref key; *lh) {
-        // writefln("%02d : %s", idx, key);
-    }
-    foreach (ref key; *lh) {
-        // writefln("%s", key);
-        if (key.ln_Priority >= 2)
-            break;
-    }
-    foreach (idx, ref key; *lh) {
-        // writefln("%02d : %s", idx, key);
-        if (idx >= 2)
-            break;
-    }
-    while (lh.remNodeHead) {
-    }
-    while (lh.remNodeTail) {
-    }
-    assert(lh.isListEmpty);
+@("LinkedList: List methods tests")
+unittest {
+    testLinkedListHead!List();
 }
 
 version (RANGEEXP) {
