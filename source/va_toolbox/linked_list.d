@@ -15,6 +15,8 @@ import std.exception;
 ** simple specific search, or later replacement. You should use this for your
 ** code too.
 */
+enum bool enableDebug = false;
+enum size_t ODDADDR = 0xdeadcaff;
 
 /*************************************************************************
 ** Type definitions for ListNodes, should always be set
@@ -81,6 +83,7 @@ enum ListNodeType : ushort {
  * two nodes. The empty list consists of just these two nodes.
  */
 struct LinkedList(bool hasExtras = true) {
+
     /*************************************************************************
     ** The List Node. This is the first element of most structures, but could
     ** be located everywhere in the structure.
@@ -122,8 +125,6 @@ struct LinkedList(bool hasExtras = true) {
             return this.ln_Pred;
         }
 
-        private enum uint ODDADDR = 0xdeadcaff;
-
         /** addNode -- insert a node into a list
         *
         * Insert a node into a doubly linked list AFTER a given node
@@ -158,10 +159,11 @@ struct LinkedList(bool hasExtras = true) {
         *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
         */
         void addNode(scope ref LinkedListHead list, scope LinkedListNode* listNode = null) {
-            version (DEBUG)
-                assert(this.ln_Succ == ODDADDR && this.ln_Pred == ODDADDR, __PRETTY_FUNCTION__ ~ ": Node already added?");
-            else
+            static if (enableDebug) {
+                assert(this.ln_Succ == cast(LinkedListNode*)ODDADDR && this.ln_Pred == cast(LinkedListNode*)ODDADDR, __PRETTY_FUNCTION__ ~ ": Node already added?");
+            } else {
                 assert(this.ln_Succ == null && this.ln_Pred == null, __PRETTY_FUNCTION__ ~ ": Node already added?");
+            }
 
             LinkedListNode* next;
 
@@ -227,9 +229,9 @@ struct LinkedList(bool hasExtras = true) {
             nextnode.ln_Pred = prevnode;
 
             // Debug hack to trigger list handling bugs in user code
-            version (DEBUG) {
-                this.ln_Succ = cast(void*) ODDADDR; // Trigger access to invalid odd memory address
-                this.ln_Pred = cast(void*) ODDADDR;
+            static if (enableDebug) {
+                this.ln_Succ = cast(LinkedListNode*) ODDADDR; // Trigger access to invalid odd memory address
+                this.ln_Pred = cast(LinkedListNode*) ODDADDR;
             } else {
                 this.ln_Succ = null;
                 this.ln_Pred = null;
@@ -416,9 +418,9 @@ struct LinkedList(bool hasExtras = true) {
                 second.ln_Pred = this.getHeadNode;
                 this.lh_Head = second;
 
-                version (DEBUG) {
-                    node.ln_Succ = cast(void*) ODDADDR; // Trigger access to invalid memory
-                    node.ln_Pred = cast(void*) ODDADDR;
+                static if (enableDebug) {
+                    node.ln_Succ = cast(LinkedListNode*) ODDADDR; // Trigger access to invalid memory
+                    node.ln_Pred = cast(LinkedListNode*) ODDADDR;
                 } else {
                     node.ln_Succ = null;
                     node.ln_Pred = null;
@@ -517,9 +519,9 @@ struct LinkedList(bool hasExtras = true) {
                 second.ln_Succ = this.getTailNode; // make it last node
                 this.lh_TailPred = second; // in chain.
 
-                version (DEBUG) {
-                    node.ln_Succ = cast(void*) ODDADDR; // Trigger access to invalid memory
-                    node.ln_Pred = cast(void*) ODDADDR;
+                static if (enableDebug) {
+                    node.ln_Succ = cast(LinkedListNode*) ODDADDR; // Trigger access to invalid memory
+                    node.ln_Pred = cast(LinkedListNode*) ODDADDR;
                 } else {
                     node.ln_Succ = null;
                     node.ln_Pred = null;
@@ -770,8 +772,8 @@ alias TinyHead = TinyList.LinkedListHead;
 * Returns:
 */
 ListNode* makeListNode(ListNodeType type = ListNodeType.LNT_UNKNOWN, short pri = 0, string name = "") {
-    version (DEBUG) {
-        auto node = new ListNode(ODDADDR, ODDADDR, type, pri, name);
+    static if (enableDebug) {
+        auto node = new ListNode(cast(ListNode*)ODDADDR, cast(ListNode*)ODDADDR, type, pri, name);
     } else {
         auto node = new ListNode(null, null, type, pri, name);
     }
