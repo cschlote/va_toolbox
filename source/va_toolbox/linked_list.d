@@ -81,10 +81,20 @@ enum ListNodeType : ushort {
  * two nodes. The empty list consists of just these two nodes.
  */
 struct LinkedList(bool hasExtras = true) {
+    static if (hasExtras) {
+        static LinkedListHead* makeHead(ListNodeType type = ListNodeType.LNT_UNKNOWN, string name = "")
+            => LinkedListHead.makeHead(type, name);
+        static LinkedListNode* makeNode(ListNodeType type = ListNodeType.LNT_UNKNOWN, short pri = 0, string name = "")
+            => LinkedListHead.makeNode(type, pri, name);
+    } else {
+        static LinkedListHead* makeHead() => LinkedListHead.makeHead();
+        static LinkedListNode* makeNode() => LinkedListHead.makeNode();
+    }
 
-    /*************************************************************************
-    ** The List Node. This is the first element of most structures, but could
-    ** be located everywhere in the structure.
+    /** The List Node.
+    **
+    ** This structure is the usually first element of a structure, but could
+    ** be located everywhere in the structure. It can be used
     */
     struct LinkedListNode {
         LinkedListNode* ln_Succ; /// Pointer to next ListNode (Successor)
@@ -94,33 +104,53 @@ struct LinkedList(bool hasExtras = true) {
             ListNodeType ln_Type; /// A type number
             short ln_Priority; /// Signed priority, for sorting
             string ln_Name; /// Pointer to a C String
+
+            this(ListNodeType type, short pri, string name) {
+                ln_Type = type;
+                ln_Priority = pri;
+                ln_Name = name;
+            }
         }
 
         /// The tail node has no successor and is part of ListHead
-        bool isNodeTail() {
-            return (this.ln_Succ == null) ? true : false;
-        }
+        bool isNodeTail() => (this.ln_Succ == null) ? true : false;
 
         /// The head node has no predecessor and is part of ListHead
-        bool isNodeHead() {
-            return (this.ln_Pred == null) ? true : false;
-        }
+        bool isNodeHead() => (this.ln_Pred == null) ? true : false;
 
         /// Is a node a real node, neithe rhead nor tail
-        bool isNodeReal() {
-            return !(isNodeTail() || isNodeHead());
-        }
+        bool isNodeReal() => !(isNodeTail() || isNodeHead());
 
         /// Some aliasing, use this with isTailNode
-        LinkedListNode* getNextNode() {
-            assert(this.ln_Succ, "Iterate on tail node?");
+        LinkedListNode* getNextNode()
+        in (!isNodeTail, "Iterate to next on tail node?")
+        do {
             return this.ln_Succ;
         }
 
         /// Some aliasing, use this with isHeadNode
-        LinkedListNode* getPrevNode() {
-            assert(this.ln_Pred, "Iterate on head node?");
+        LinkedListNode* getPrevNode()
+        in (!isNodeHead, "Iterate to previous on head node?")
+        do {
             return this.ln_Pred;
+        }
+
+        /** linkNode -- link a node into a list
+         *
+         * Params:
+         *   prevNode = ptr to previous node (or head node)
+         *   nextNode = ptr to next node (or tail node)
+         *
+         * Note: No checks at all!
+         */
+        package void linkNode(scope LinkedListNode* prevNode, scope LinkedListNode* nextNode) {
+            // Update our own links to next and previous node
+            this.ln_Succ = nextNode;
+            this.ln_Pred = prevNode;
+
+            // Then overwrite the links from previous and next node to our node
+            prevNode.ln_Succ = &this;
+            nextNode.ln_Pred = &this;
         }
 
         /** addNode -- insert a node into a list
@@ -134,16 +164,17 @@ struct LinkedList(bool hasExtras = true) {
         * Params:
         *   this - the node to insert AFTER...
         *   list - a pointer to the target list header
-        *   listNode - the node after which to insert, or null to add to list head
+        *   prevNode - the node after which to insert, or null to add to list head
         *
         * Returns:
         *   Your list is larger by one node.
         *
         * Example:
         *   ListHead myList;
-        *   ListNode* myNode,listNode;
+        *
+        *   ListNode* myNode, listNode;
         *   	...
-        *   	myNode.addNodeHead( myList, listNode );
+        *   myNode.addNodeHead( myList, listNode );
         *
         * Notes:
         *   This function does not arbitrate for access to the list.  The
@@ -156,28 +187,31 @@ struct LinkedList(bool hasExtras = true) {
         *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
         *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
         */
-        void addNode(scope ref LinkedListHead list, scope LinkedListNode* listNode = null) {
-            assert(this.ln_Succ == null && this.ln_Pred == null, __PRETTY_FUNCTION__ ~ ": Node already added?");
+        void addNode(scope ref LinkedListHead list, scope LinkedListNode* prevNode = null)
+        in (this.ln_Succ == null && this.ln_Pred == null, __PRETTY_FUNCTION__ ~ ": Node already added?")
+        do {
+            if (!prevNode)
+                prevNode = list.getHeadNode;
 
-            LinkedListNode* next;
+            if (prevNode.isNodeTail)
+                prevNode = prevNode.getPrevNode; // Move listNode one node back to head or real node.
 
-            if (!listNode)
-                listNode = list.getHeadNode;
+            auto next = prevNode.getNextNode;
 
-            if (listNode.isNodeTail) // Is listNode the end of list ?
-                listNode = listNode.getPrevNode; // Move listNode one node back to head or real node.
+            linkNode(prevNode, next);
+        }
 
-            next = listNode.getNextNode;
-
-            // Update our own links to next and previous node
-            this.ln_Succ = next;
-            this.ln_Pred = listNode;
-
-            // Then overwrite the links from previous and next node to our node
-            listNode.ln_Succ = &this;
-            next.ln_Pred = &this;
-
-            // Node is now added to list.
+        /** unlinkNode -- unlink a linked node from list
+         *
+         * Note: No checks at all!
+         */
+        package void unlinkNode() {
+            auto nextnode = this.ln_Succ; // get prev and next nodes
+            auto prevnode = this.ln_Pred;
+            prevnode.ln_Succ = nextnode; // merge these nodes
+            nextnode.ln_Pred = prevnode;
+            this.ln_Succ = null; // Clear invalid pointers
+            this.ln_Pred = null;
         }
 
         /** remNode -- remove a node from a list
@@ -212,21 +246,10 @@ struct LinkedList(bool hasExtras = true) {
         *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
         *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
         */
-        LinkedListNode* remNode() {
-            LinkedListNode* nextnode, prevnode;
-            nextnode = this.ln_Succ; // Get the prevnode and nextnode of current node
-            prevnode = this.ln_Pred;
-
-            assert(prevnode && nextnode, __PRETTY_FUNCTION__ ~ ": Node to remove is not a valid node.");
-
-            prevnode.ln_Succ = nextnode; // and merge them together :-)
-            nextnode.ln_Pred = prevnode;
-
-            // Debug hack to trigger list handling bugs in user code
-
-                this.ln_Succ = null;
-                this.ln_Pred = null;
-
+        LinkedListNode* remNode()
+        in (isNodeReal, __PRETTY_FUNCTION__ ~ ": Can only remove linked nodes.")
+        do {
+            unlinkNode();
             return &this;
         }
     }
@@ -258,9 +281,16 @@ struct LinkedList(bool hasExtras = true) {
             enforce node types matching the list type. */
             ListNodeType lh_Type;
             string lh_Name;
+
+            this(ListNodeType type, string name) {
+                this.lh_Type = type;
+                this.lh_Name = name;
+            }
         }
 
+        /// Access to headNode
         @property auto ref headNode() => *getHeadNode;
+        /// Access to tailNode
         @property auto ref tailNode() => *getTailNode;
 
         /** Get the 'head node'
@@ -273,7 +303,7 @@ struct LinkedList(bool hasExtras = true) {
         /** Get the 'tail node'
         *
         * Note: The cast operation is hidden inside this function.
-        * Returns: Ptr to the 'head node'
+        * Returns: Ptr to the 'tail node'
         */
         auto getTailNode() => (cast(LinkedListNode*)&(this.lh_Tail));
 
@@ -349,19 +379,8 @@ struct LinkedList(bool hasExtras = true) {
         *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
         */
         void addNodeHead(ref LinkedListNode node) {
-            LinkedListNode* oldFirstNode;
-
-            oldFirstNode = this.getHeadNode.getNextNode;
-
-            // Setup the links of the node to add
-            node.ln_Pred = this.getHeadNode;
-            node.ln_Succ = oldFirstNode;
-
-            // Ok, now patch our node into the existing list
-            this.lh_Head = &node;
-            oldFirstNode.ln_Pred = &node;
-
-            // Now node should be first node of List.
+            // Link between head node and current 'first' node (or tai)
+            node.linkNode(this.getHeadNode, this.getHeadNode.getNextNode);
         }
 
         /** remNodeHead -- remove node at the head of a list
@@ -399,23 +418,13 @@ struct LinkedList(bool hasExtras = true) {
         *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
         */
         LinkedListNode* remNodeHead() {
-            LinkedListNode* node, second;
-            node = this.getHeadNode.getNextNode(); // Get the first node
-
-            if (!node.isNodeTail()) // Is List empty ?
-            {
-                // make second node the first
-                second = node.getNextNode();
-                second.ln_Pred = this.getHeadNode;
-                this.lh_Head = second;
-
-
-                    node.ln_Succ = null;
-                    node.ln_Pred = null;
-
-                return node; // return removed node or null
-            } else
+            // Get the first node or tail node
+            auto node = this.getHeadNode.getNextNode();
+            if (node.isNodeTail())
                 return null;
+
+            node.unlinkNode();
+            return node;
         }
 
         /** addNodeTail -- insert node at the head of a list
@@ -450,18 +459,8 @@ struct LinkedList(bool hasExtras = true) {
         *
         */
         void addNodeTail(ref LinkedListNode node) {
-            LinkedListNode* lastnode; // The HEAD node or the last real node of list
-
-            lastnode = this.getTailNode.getPrevNode; // Get the last real node of list or HEAD node
-
-            // Now prepare the node first
-            node.ln_Pred = lastnode; // Points to HEAD or last node
-            node.ln_Succ = this.getTailNode; // Points to TAIL node
-
-            // Now patch our node into the list
-
-            this.getTailNode.ln_Pred /* aka. lh_TailPred */  = &node; // Make our node the new last node
-            lastnode.ln_Succ = &node; // Let the previous last node point to node
+            // Link between last and tail node
+            node.linkNode(this.getTailNode.getPrevNode, this.getTailNode);
         }
 
         /** remNodeTail -- remove node at the tail of a list
@@ -499,21 +498,13 @@ struct LinkedList(bool hasExtras = true) {
         *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
         */
         LinkedListNode* remNodeTail() {
-            LinkedListNode* node, second;
-            node = this.lh_TailPred; // Get Predecessor of Tail Node
-            if (!node.isNodeHead()) // Check for Head node
-            {
-                second = node.getPrevNode(); // Get Predecessor of last node
-                second.ln_Succ = this.getTailNode; // make it last node
-                this.lh_TailPred = second; // in chain.
+            // Get the last node or head node
+            auto node = this.getTailNode.getPrevNode();
+            if (node.isNodeHead())
+                return null;
 
-
-                    node.ln_Succ = null;
-                    node.ln_Pred = null;
-
-                return node;
-            }
-            return null;
+            node.unlinkNode();
+            return node;
         }
 
         /** addNode -- insert a node into a list
@@ -682,14 +673,14 @@ struct LinkedList(bool hasExtras = true) {
 
             /** Generator to create a ListHead on heap */
             static LinkedListHead* makeHead(ListNodeType type = ListNodeType.LNT_UNKNOWN, string name = "") {
-                auto head = new LinkedListHead(null, null, null, type, name);
+                auto head = new LinkedListHead(type, name);
                 head.initListHead;
                 return head;
             }
 
             static ListNode* makeNode(ListNodeType type = ListNodeType.LNT_UNKNOWN, short pri = 0, string name = "") {
 
-                    auto node = new LinkedListNode(null, null, type, pri, name);
+                auto node = new LinkedListNode(type, pri, name);
 
                 return node;
             }
@@ -704,7 +695,7 @@ struct LinkedList(bool hasExtras = true) {
             /** Generator to create a ListNode on heap, optionally setting other fields */
             static LinkedListNode* makeNode() {
 
-                    auto node = new LinkedListNode(null, null);
+                auto node = new LinkedListNode();
 
                 return node;
             }
@@ -781,34 +772,38 @@ alias TinyHead = TinyList.LinkedListHead;
 /* ---------------------------------------------------------------------*/
 
 version (unittest) {
+
     void testLinkedListNode(T)() {
-        auto lh = T.LinkedListHead.makeHead;
+        auto lh = T.makeHead;
+
+        assertThrown!AssertError(lh.headNode.getPrevNode());
+        assertThrown!AssertError(lh.tailNode.getNextNode());
 
         static if (is(T == List)) {
-            auto node1 = lh.makeNode(ListNodeType.LNT_UNKNOWN, 1, "A");
-            assertThrown!AssertError(node1.remNode());
-            auto node2 = lh.makeNode(ListNodeType.LNT_UNKNOWN, 2, "B");
-            auto node3 = lh.makeNode(ListNodeType.LNT_UNKNOWN, 3, "C");
+            auto node1 = T.makeNode(ListNodeType.LNT_UNKNOWN, 1, "A");
+            auto node2 = T.makeNode(ListNodeType.LNT_UNKNOWN, 2, "B");
+            auto node3 = T.makeNode(ListNodeType.LNT_UNKNOWN, 3, "C");
         } else {
-            auto node1 = lh.makeNode();
-            assertThrown!AssertError(node1.remNode());
-            auto node2 = lh.makeNode();
-            auto node3 = lh.makeNode();
+            auto node1 = T.makeNode();
+            auto node2 = T.makeNode();
+            auto node3 = T.makeNode();
         }
+        auto nodes = [node1, node2, node3];
+        foreach (node; nodes)
+            assertThrown!AssertError(node.remNode());
 
         node1.addNode(*lh, lh.getTailNode); // Test special case...
         node2.addNode(*lh);
         node3.addNode(*lh);
+
         int idx = 3;
         for (auto nd = lh.getHeadNode.getNextNode; !nd.isNodeTail; nd = nd.getNextNode) {
-            import std.stdio : writeln;
-
-            // writeln(*nd);
             static if (is(T == List)) {
                 assert(nd.ln_Priority == idx);
             }
             idx--;
         }
+        assert(idx == 0);
         node1.remNode();
         node3.remNode();
         node2.remNode();
@@ -830,9 +825,9 @@ version (unittest) {
         node1.remNode();
         node3.remNode();
         node2.remNode();
+        assert(idx == (3 + 1));
 
         node1 = node2 = node3 = null;
-
     }
 }
 @("LinkedList: TinyList node methods tests")
@@ -850,13 +845,13 @@ version (unittest) {
         import std.stdio : writeln, writefln;
         import std.format : format;
 
-        auto lh = T.LinkedListHead.makeHead();
+        auto lh = T.makeHead();
         assert(lh.isListEmpty == true);
         assert(lh.headNode == *lh.getHeadNode);
         assert(lh.tailNode == *lh.getTailNode);
 
         static if (is(T == List)) {
-            auto node1 = T.LinkedListNode(null, null, ListNodeType.LNT_MEMHANDLER, 42, "Test 1");
+            auto node1 = T.LinkedListNode(ListNodeType.LNT_MEMHANDLER, 42, "Test 1");
             assert(node1.ln_Type == ListNodeType.LNT_MEMHANDLER);
             assert(node1.ln_Priority == 42);
             assert(node1.ln_Name == "Test 1");
@@ -872,7 +867,7 @@ version (unittest) {
         assert(node1.getNextNode.isNodeTail);
 
         static if (is(T == List)) {
-            auto node2 = T.LinkedListNode(null, null, ListNodeType.LNT_AUDIO, 43, "Test 2");
+            auto node2 = T.LinkedListNode(ListNodeType.LNT_AUDIO, 43, "Test 2");
             assert(node2.ln_Type == ListNodeType.LNT_AUDIO);
             assert(node2.ln_Priority == 43);
             assert(node2.ln_Name == "Test 2");
@@ -892,7 +887,7 @@ version (unittest) {
         assert(cnt == 2);
 
         static if (is(T == List)) {
-            auto node3 = T.LinkedListNode(null, null, ListNodeType.LNT_AUDIO, 54, "Test 3");
+            auto node3 = T.LinkedListNode(ListNodeType.LNT_AUDIO, 54, "Test 3");
             assert(node3.ln_Type == ListNodeType.LNT_AUDIO);
             assert(node3.ln_Priority == 54);
             assert(node3.ln_Name == "Test 3");
@@ -923,7 +918,7 @@ version (unittest) {
         }
 
         static if (is(T == List)) {
-            ListNode node4 = ListNode(null, null, ListNodeType.LNT_AUDIO, 50, "Test 4");
+            ListNode node4 = ListNode(ListNodeType.LNT_AUDIO, 50, "Test 4");
             assert(node4.ln_Type == ListNodeType.LNT_AUDIO);
             assert(node4.ln_Priority == 50);
             assert(node4.ln_Name == "Test 4");
