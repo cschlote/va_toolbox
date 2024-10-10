@@ -667,7 +667,7 @@ struct LinkedList(bool hasExtras = true) {
             LinkedListNode* findNode(string name) {
                 for (ListNode* node = this.getHeadNode.getNextNode(); !node.isNodeTail();
                     node = node.getNextNode()) {
-                    if (node.ln_Name && node.ln_Name == name)
+                    if (node.ln_Name.length && node.ln_Name == name)
                         return node;
                 }
                 return null;
@@ -725,9 +725,6 @@ struct LinkedList(bool hasExtras = true) {
             return 0;
         }
     }
-
-    // LinkedListHead listHead;
-    // alias this = listHead;
 
     /// Ranges D interface - Experimental
     version (RANGEEXP) {
