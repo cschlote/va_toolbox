@@ -8,6 +8,7 @@ module va_toolbox.linked_list;
 
 import core.exception;
 import std.exception;
+import std.conv;
 
 /*****************************************************************************
 ** NOTE:
@@ -121,6 +122,9 @@ struct LinkedList(bool hasExtras = true) {
         /// Is a node a real node, neithe rhead nor tail
         bool isNodeReal() => !(isNodeTail() || isNodeHead());
 
+        /// Is a not unlinked?
+        bool isNodeUnlinked() => this.ln_Succ == null && this.ln_Pred == null;
+
         /// Some aliasing, use this with isTailNode
         LinkedListNode* getNextNode()
         in (!isNodeTail, "Iterate to next on tail node?")
@@ -188,7 +192,7 @@ struct LinkedList(bool hasExtras = true) {
         *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
         */
         void addNode(scope ref LinkedListHead list, scope LinkedListNode* prevNode = null)
-        in (this.ln_Succ == null && this.ln_Pred == null, __PRETTY_FUNCTION__ ~ ": Node already added?")
+        in (isNodeUnlinked, __PRETTY_FUNCTION__ ~ ": Node already added?")
         do {
             if (!prevNode)
                 prevNode = list.getHeadNode;
@@ -378,7 +382,9 @@ struct LinkedList(bool hasExtras = true) {
         *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
         *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
         */
-        void addNodeHead(ref LinkedListNode node) {
+        void addNodeHead(ref LinkedListNode node)
+        in (node.isNodeUnlinked, __PRETTY_FUNCTION__ ~ ": Trying to add already linked node.")
+        do {
             // Link between head node and current 'first' node (or tai)
             node.linkNode(this.getHeadNode, this.getHeadNode.getNextNode);
         }
@@ -417,7 +423,9 @@ struct LinkedList(bool hasExtras = true) {
         *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
         *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
         */
-        LinkedListNode* remNodeHead() {
+        LinkedListNode* remNodeHead()
+        in (this.isListEmpty || this.getHeadNode.getNextNode.isNodeReal, __PRETTY_FUNCTION__ ~ ": Trying to remove unlinked node.")
+        do {
             // Get the first node or tail node
             auto node = this.getHeadNode.getNextNode();
             if (node.isNodeTail())
@@ -458,7 +466,9 @@ struct LinkedList(bool hasExtras = true) {
         *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
         *
         */
-        void addNodeTail(ref LinkedListNode node) {
+        void addNodeTail(ref LinkedListNode node)
+        in (node.isNodeUnlinked, __PRETTY_FUNCTION__ ~ ": Trying to add already linked node.")
+        do {
             // Link between last and tail node
             node.linkNode(this.getTailNode.getPrevNode, this.getTailNode);
         }
@@ -497,7 +507,9 @@ struct LinkedList(bool hasExtras = true) {
         *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
         *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
         */
-        LinkedListNode* remNodeTail() {
+        LinkedListNode* remNodeTail()
+        in (this.isListEmpty || this.getTailNode.getPrevNode.isNodeReal, __PRETTY_FUNCTION__ ~ ": Trying to remove unlinked node.")
+        do {
             // Get the last node or head node
             auto node = this.getTailNode.getPrevNode();
             if (node.isNodeHead())
@@ -954,6 +966,8 @@ unittest {
 
 /* ---------------------------------------------------------------------*/
 
+version (unittest) import std.stdio;
+
 class LinkedListRange(T) {
 
 private:
@@ -970,28 +984,49 @@ public:
         assert(list, __PRETTY_FUNCTION__ ~ ": You must specify a list, not NULL");
         this.listHead = *list;
     }
+    //------------------------------------------------------------
+
+    @property bool empty() {
+        auto rc = listHead.isListEmpty;
+        // writeln(__FUNCTION__, " ", rc, " ", listLength);
+        return listLength == 0;
+    }
 
     @property size_t length() => listLength;
 
-    void put( T.LinkedListNode e) {
-        listHead.addNodeTail(e);
+    void put(T.LinkedListNode* e) {
+        listHead.addNodeTail(*e);
         listLength++;
         assert(listLength >= 0);
+        // writeln(__FUNCTION__, " ", *e, " ", listLength);
     }
 
-    @property bool empty() => listHead.isListEmpty;
+    @property T.LinkedListNode* front() {
+        auto rc = listHead.isListEmpty ? null : listHead.getHeadNode.getNextNode;
+        // if (rc)
+        //     writeln(__FUNCTION__, " ", *rc, " ", listLength);
+        // else
+        //     writeln(__FUNCTION__, " ", "<null>", " ", listLength);
+        return rc;
+    }
 
-    @property T.LinkedListNode* front() => listHead.isListEmpty ? null
-        : listHead.getHeadNode.getNextNode;
     void popFront() {
         if (listHead.remNodeHead) {
             assert(listLength > 0);
             listLength--;
         }
+        // writeln(__FUNCTION__, " ", listLength);
     }
 
-    @property T.LinkedListNode* back() => listHead.isListEmpty ? null : listHead
-        .getTailNode.getPrevNode;
+    @property T.LinkedListNode* back() {
+        auto rc = listHead.isListEmpty ? null : listHead.getTailNode.getPrevNode;
+        if (rc)
+            writeln(__FUNCTION__, " ", *rc, " ", listLength);
+        else
+            writeln(__FUNCTION__, " ", "<null>", " ", listLength);
+        return rc;
+    }
+
     void popBack() {
         if (listHead.remNodeTail) {
             assert(listLength > 0);
@@ -1017,10 +1052,11 @@ version (unittest) {
         import std.format : format;
 
         alias T = LinkedListRange!U;
+        const bool v = false;
 
         static assert(hasLength!T);
         static assert(isInputRange!T);
-        static assert(isOutputRange!(T, U.LinkedListNode));
+        static assert(isOutputRange!(T, ElementType!T));
         static assert(!isForwardRange!T);
         static assert(!isBidirectionalRange!T);
         static assert(!isRandomAccessRange!T);
@@ -1034,25 +1070,50 @@ version (unittest) {
                 } else {
                     U.LinkedListNode* node = U.makeNode();
                 }
-                writefln("%c%02d: %s", fill, idx, *node);
-                rng.put(*node);
+                if (v) writefln("%c%02d: %s", fill, idx, *node);
+                rng.put(node);
             }
             return rng;
         }
+
         auto rng1 = mockList('A', 0, 10);
         assert(rng1.length == 10);
         auto rng2 = mockList('B', 20, 10);
         assert(rng2.length == 10);
 
-        T rng3 = new T();
+        auto chained = chain(rng1, rng2);
+        if (v) writefln("Chain Length = %d", chained.length);
+        assert(chained.length == 20);
 
-        //copy(chain(rng1, rng2), rng3);
+        auto data = chained.array;
+        if (v) writefln("Chain Length = %d", chained.length);
+        if (v) writefln("Data Length = %d", data.length);
+        assert(chained.length == 0);
+        assert(data.length == 20);
 
-        writefln("Length = %d", rng3.length);
-        // assert (lh3.length == 20);
+        auto rng3 = new T();
+        copy(data, rng3);
+        if (v) writefln("Data Length = %d", data.length);
+        if (v) writefln("RNG3 Length = %d", rng3.length);
+        assert(data.length == 20);
+        assert(rng3.length == 20);
+
+        auto rng4 = new T();
+        assertThrown!AssertError(copy(rng3, rng4));
+/** FIXME:
+** copy from one list to another won't work, because the node is readded
+** to the target list before it is removed from the source list.
+** Might be fixed by having front() and back() providing copies of the node
+** but this simply conflicts with the design of having the node being a part
+** of another structure. So just making a copy, wo't work out.
+**/
+        if (v) writefln("RNG3 Length = %d", rng3.length);
+        if (v) writefln("RNG4 Length = %d", rng4.length);
+        assert (rng3.length == 20);
+        assert (rng4.length == 0);
 
         foreach (idx, ref node; rng3.listHead) {
-            writefln("%02d:C %s", idx, node);
+            if (v) writefln("C%02d: %s", idx, node);
         }
     }
 }
