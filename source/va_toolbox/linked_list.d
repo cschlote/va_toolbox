@@ -725,36 +725,6 @@ struct LinkedList(bool hasExtras = true) {
             return 0;
         }
     }
-
-    /// Ranges D interface - Experimental
-    version (RANGEEXP) {
-
-        @property bool empty() => this.isListEmpty;
-
-        @property ListNode* front() => this.isListEmpty ? null : this.getHeadNode.getNextNode;
-        void popFront() {
-            this.remNodeHead;
-        }
-
-        @property ListNode* back() => this.isListEmpty ? null : this.getTailNode.getPrevNode;
-        void popBack() {
-            this.remNodeTail;
-        }
-
-        ref auto opIndex(size_t index) {
-            foreach (idx, ref val; this)
-                if (idx == index)
-                    return val;
-            assert(false, __PRETTY_FUNCTION__ ~ ": Out of index.");
-        }
-
-        @property size_t length() {
-            size_t len = 0;
-            foreach (idx, ref val; this)
-                len++;
-            return len;
-        }
-    }
 }
 
 alias List = LinkedList!true;
@@ -982,53 +952,119 @@ unittest {
     testLinkedListHead!List();
 }
 
-version (RANGEEXP) {
-    @("LinkedList: Test ranges interface")
-    unittest {
+/* ---------------------------------------------------------------------*/
+
+class LinkedListRange(T) {
+
+private:
+    T.LinkedListHead listHead;
+    size_t listLength;
+
+public:
+    this() {
+        this.listHead = T.LinkedListHead();
+        this.listHead.initListHead;
+    }
+
+    this(T.LinkedListHead* list) {
+        assert(list, __PRETTY_FUNCTION__ ~ ": You must specify a list, not NULL");
+        this.listHead = *list;
+    }
+
+    @property size_t length() => listLength;
+
+    void put( T.LinkedListNode e) {
+        listHead.addNodeTail(e);
+        listLength++;
+        assert(listLength >= 0);
+    }
+
+    @property bool empty() => listHead.isListEmpty;
+
+    @property T.LinkedListNode* front() => listHead.isListEmpty ? null
+        : listHead.getHeadNode.getNextNode;
+    void popFront() {
+        if (listHead.remNodeHead) {
+            assert(listLength > 0);
+            listLength--;
+        }
+    }
+
+    @property T.LinkedListNode* back() => listHead.isListEmpty ? null : listHead
+        .getTailNode.getPrevNode;
+    void popBack() {
+        if (listHead.remNodeTail) {
+            assert(listLength > 0);
+            listLength--;
+        }
+    }
+
+    ref auto opIndex(size_t index) {
+        foreach (idx, ref val; listHead)
+            if (idx == index)
+                return val;
+        assert(false, __PRETTY_FUNCTION__ ~ ": Out of index.");
+    }
+
+}
+
+version (unittest) {
+    private void testRanges(U)() {
+        import std.conv : to;
         import std.algorithm;
         import std.range;
         import std.stdio : writefln, writeln;
         import std.format : format;
 
-        static assert(!hasLength!(ListHead));
-        static assert(isInputRange!ListHead);
-        static assert(!isOutputRange!(ListHead, ListHead));
-        static assert(!isForwardRange!ListHead);
-        static assert(!isBidirectionalRange!ListHead);
-        static assert(!isRandomAccessRange!ListHead);
+        alias T = LinkedListRange!U;
 
-        ListHead lh1;
-        lh1.initListHead;
-        foreach (short idx; 0 .. 10) {
-            auto node = makeListNode(ListNodeType.LNT_UNKNOWN, idx, format("Node%02d", idx));
-            writefln("%02d:A %s", idx, *node);
-            lh1.addNodeTail(*node);
+        static assert(hasLength!T);
+        static assert(isInputRange!T);
+        static assert(isOutputRange!(T, U.LinkedListNode));
+        static assert(!isForwardRange!T);
+        static assert(!isBidirectionalRange!T);
+        static assert(!isRandomAccessRange!T);
+
+        T mockList(char fill, short start, short cnt) {
+            T rng = new T();
+            foreach (short idx; 0 .. cnt) {
+                static if (is(U == List)) {
+                    auto str = format("Node%02d", start + idx);
+                    U.LinkedListNode* node = U.makeNode(ListNodeType.LNT_UNKNOWN, (start + idx).to!short, str);
+                } else {
+                    U.LinkedListNode* node = U.makeNode();
+                }
+                writefln("%c%02d: %s", fill, idx, *node);
+                rng.put(*node);
+            }
+            return rng;
         }
+        auto rng1 = mockList('A', 0, 10);
+        assert(rng1.length == 10);
+        auto rng2 = mockList('B', 20, 10);
+        assert(rng2.length == 10);
 
-        ListHead lh2;
-        lh2.initListHead;
-        foreach (short idx; 20 .. 30) {
-            auto node = makeListNode(ListNodeType.LNT_UNKNOWN, idx, format("Node%02d", idx));
-            writefln("%02d:B %s", idx, *node);
-            lh2.addNodeTail(*node);
-        }
+        T rng3 = new T();
 
-        // TODO: Find out what happens here.
+        //copy(chain(rng1, rng2), rng3);
 
-        ListHead lh3;
-        lh3.initListHead;
-        foreach (node; chain(lh1, lh2)) {
-            lh3.addNodeTail(*node);
-            writefln("%02d:C %s", 0, *node);
-        }
-
-        // writefln("Length = %d", lh3.length);
+        writefln("Length = %d", rng3.length);
         // assert (lh3.length == 20);
 
-        foreach (idx, ref node; lh3.enumerate) {
-            writefln("%02d: %s", idx, *node);
+        foreach (idx, ref node; rng3.listHead) {
+            writefln("%02d:C %s", idx, node);
         }
     }
+}
+
+@("LinkedList: Test ranges interface for TinyList")
+unittest {
+    testRanges!(TinyList)();
+}
+
+@("LinkedList: Test ranges interface for List")
+unittest {
+    testRanges!(List)();
 }
 
 /*******************************************************************************
