@@ -972,7 +972,9 @@ class LinkedListRange(T) {
 
 private:
     T.LinkedListHead listHead;
+    T.LinkedListNode* frontSlot;
     size_t listLength;
+    const bool V = false;
 
 public:
     this() {
@@ -980,66 +982,60 @@ public:
         this.listHead.initListHead;
     }
 
-    this(T.LinkedListHead* list) {
-        assert(list, __PRETTY_FUNCTION__ ~ ": You must specify a list, not NULL");
-        this.listHead = *list;
-    }
     //------------------------------------------------------------
 
     @property bool empty() {
-        auto rc = listHead.isListEmpty;
-        // writeln(__FUNCTION__, " ", rc, " ", listLength);
+        auto rc = listHead.isListEmpty && frontSlot == null;
+
+        if (V)
+            writeln(__FUNCTION__, " ", rc, " ", listLength);
+        assert(rc == (listLength == 0), "Inconsistency?");
         return listLength == 0;
     }
 
-    @property size_t length() => listLength;
+    @property size_t length() {
+        if (frontSlot) {
+            listHead.addNodeHead(*frontSlot);
+            frontSlot = null;
+        }
+        return listLength;
+    }
 
-    void put(T.LinkedListNode* e) {
-        listHead.addNodeTail(*e);
+    void put(T.LinkedListNode* node) {
+        listHead.addNodeTail(*node);
         listLength++;
-        assert(listLength >= 0);
-        // writeln(__FUNCTION__, " ", *e, " ", listLength);
+        assert(listLength > 0);
+        if (V)
+            writeln(__FUNCTION__, " ", *node, " ", listLength);
     }
 
-    @property T.LinkedListNode* front() {
-        auto rc = listHead.isListEmpty ? null : listHead.getHeadNode.getNextNode;
-        // if (rc)
-        //     writeln(__FUNCTION__, " ", *rc, " ", listLength);
-        // else
-        //     writeln(__FUNCTION__, " ", "<null>", " ", listLength);
-        return rc;
+    @property T.LinkedListNode* front()
+    in (listLength > 0, "Calling front() on empty range.")
+    do {
+        if (frontSlot is null)
+            frontSlot = listHead.remNodeHead;
+
+        if (V)
+            writeln(__FUNCTION__, " ", *frontSlot, " ", listLength);
+        return frontSlot;
     }
 
-    void popFront() {
-        if (listHead.remNodeHead) {
-            assert(listLength > 0);
-            listLength--;
+    /// Range popFront() IF - see D manual for details!
+    void popFront()
+    in (listLength > 0, "Calling popFront() on empty range.")
+    do {
+        if (frontSlot) {
+            frontSlot = null;
+        } else {
+            listHead.remNodeHead;
         }
-        // writeln(__FUNCTION__, " ", listLength);
+        listLength--;
+        if (V)
+            writeln(__FUNCTION__, " ", listLength);
     }
+}
 
-    @property T.LinkedListNode* back() {
-        auto rc = listHead.isListEmpty ? null : listHead.getTailNode.getPrevNode;
-        if (rc)
-            writeln(__FUNCTION__, " ", *rc, " ", listLength);
-        else
-            writeln(__FUNCTION__, " ", "<null>", " ", listLength);
-        return rc;
-    }
-
-    void popBack() {
-        if (listHead.remNodeTail) {
-            assert(listLength > 0);
-            listLength--;
-        }
-    }
-
-    ref auto opIndex(size_t index) {
-        foreach (idx, ref val; listHead)
-            if (idx == index)
-                return val;
-        assert(false, __PRETTY_FUNCTION__ ~ ": Out of index.");
-    }
+class LinkedListRangeTweak(T) {
 
 }
 
@@ -1070,7 +1066,8 @@ version (unittest) {
                 } else {
                     U.LinkedListNode* node = U.makeNode();
                 }
-                if (v) writefln("%c%02d: %s", fill, idx, *node);
+                if (v)
+                    writefln("%c%02d: %s", fill, idx, *node);
                 rng.put(node);
             }
             return rng;
@@ -1082,38 +1079,40 @@ version (unittest) {
         assert(rng2.length == 10);
 
         auto chained = chain(rng1, rng2);
-        if (v) writefln("Chain Length = %d", chained.length);
+        if (v)
+            writefln("Chain Length = %d", chained.length);
         assert(chained.length == 20);
 
         auto data = chained.array;
-        if (v) writefln("Chain Length = %d", chained.length);
-        if (v) writefln("Data Length = %d", data.length);
+        if (v)
+            writefln("Chain Length = %d", chained.length);
+        if (v)
+            writefln("Data Length = %d", data.length);
         assert(chained.length == 0);
         assert(data.length == 20);
 
         auto rng3 = new T();
         copy(data, rng3);
-        if (v) writefln("Data Length = %d", data.length);
-        if (v) writefln("RNG3 Length = %d", rng3.length);
+        if (v)
+            writefln("Data Length = %d", data.length);
+        if (v)
+            writefln("RNG3 Length = %d", rng3.length);
         assert(data.length == 20);
         assert(rng3.length == 20);
 
         auto rng4 = new T();
-        assertThrown!AssertError(copy(rng3, rng4));
-/** FIXME:
-** copy from one list to another won't work, because the node is readded
-** to the target list before it is removed from the source list.
-** Might be fixed by having front() and back() providing copies of the node
-** but this simply conflicts with the design of having the node being a part
-** of another structure. So just making a copy, wo't work out.
-**/
-        if (v) writefln("RNG3 Length = %d", rng3.length);
-        if (v) writefln("RNG4 Length = %d", rng4.length);
-        assert (rng3.length == 20);
-        assert (rng4.length == 0);
+        assertNotThrown!AssertError(copy(rng3, rng4));
+        /* Note: Copying needs special handling here. See class for details! */
+        if (v)
+            writefln("RNG3 Length = %d", rng3.length);
+        if (v)
+            writefln("RNG4 Length = %d", rng4.length);
+        assert(rng3.length == 0);
+        assert(rng4.length == 20);
 
         foreach (idx, ref node; rng3.listHead) {
-            if (v) writefln("C%02d: %s", idx, node);
+            if (v)
+                writefln("C%02d: %s", idx, node);
         }
     }
 }
