@@ -615,13 +615,15 @@ struct LinkedList(bool hasExtras = true) {
             *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
             */
             void addNodeSorted(ref LinkedListNode node) {
-                ListNode* tnode;
-                // Search for insert position
-                for (tnode = this.getHeadNode.getNextNode; !tnode.isNodeTail; tnode = tnode.getNextNode()) {
-                    if (node.ln_Priority >= tnode.ln_Priority)
+
+                LinkedListNode* insertNode;
+                for (
+                    insertNode = this.getHeadNode.getNextNode; !insertNode.isNodeTail;
+                    insertNode = insertNode.getNextNode()) {
+                    if (node.ln_Priority >= insertNode.ln_Priority)
                         break;
                 }
-                node.addNode(this, tnode);
+                node.addNode(this, insertNode);
             }
 
             /** findNode -- find a node by name
@@ -671,17 +673,16 @@ struct LinkedList(bool hasExtras = true) {
                 return null;
             }
 
-            /** Generator to create a ListHead on heap */
+            /** Generator to create a ListHead on heap, optionally setting other fields */
             static LinkedListHead* makeHead(ListNodeType type = ListNodeType.LNT_UNKNOWN, string name = "") {
                 auto head = new LinkedListHead(type, name);
                 head.initListHead;
                 return head;
             }
 
+            /** Generator to create a ListNode on heap, optionally setting other fields */
             static ListNode* makeNode(ListNodeType type = ListNodeType.LNT_UNKNOWN, short pri = 0, string name = "") {
-
                 auto node = new LinkedListNode(type, pri, name);
-
                 return node;
             }
         } else {
@@ -694,9 +695,7 @@ struct LinkedList(bool hasExtras = true) {
 
             /** Generator to create a ListNode on heap, optionally setting other fields */
             static LinkedListNode* makeNode() {
-
                 auto node = new LinkedListNode();
-
                 return node;
             }
         }
