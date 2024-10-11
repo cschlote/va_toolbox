@@ -18,15 +18,15 @@
             "name": "Launch Test App",
             "program": "${workspaceFolder}/va_toolbox-test-application",
             // "args": ["--", "-t1", "-i", "Test generateBurningShipImage() CTFE"],
-            "args": ["--", "-t1", "-i", "Test SimpleBMPImage"],
+            "args": ["--", "-t1", "-i", "LinkedList: List methods tests"],
             "cwd": "${workspaceFolder}"
         },
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Launch test Lib",
+            "name": "Launch Test Lib",
             "program": "${workspaceFolder}/va_toolbox-test-library",
-            "args": ["--", "-t1"],
+            "args": ["--", "-t1", "-i", "LinkedList: List methods tests"],
             "cwd": "${workspaceFolder}"
         }
     ]
