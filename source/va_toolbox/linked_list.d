@@ -17,62 +17,6 @@ import std.conv;
 ** code too.
 */
 
-/*************************************************************************
-** Type definitions for ListNodes, should always be set
-** The system.library will always set and use these types for its
-** structures.
-*/
-enum ListNodeType : ushort {
-    LNT_UNKNOWN = 0x0000, // For anything not found below
-
-    //-- Nodes for system.library services ---
-    LNT_RESOURCE = 0x0001, // A Hardware description node
-    LNT_MEMORY = 0x0100, // For physical Memory management
-    LNT_VIRTMEM = 0x0101, // For virtual Memory management
-    LNT_PAGEMEM = 0x0102, // For paged memory management
-    LNT_MEMLIST = 0x0103, // For MemList Structures
-    LNT_MEMPOOL = 0x0104, // For MemPools
-    LNT_MEMHANDLER = 0x0105, // For MemHandler
-
-    LNT_MSGQUEUE = 0x0200, // For the MsgPort list
-    LNT_MSGIDLE = 0x0201, // Message currently not in use
-    LNT_MSGSENT = 0x0202, // Message has been send
-    LNT_MSGRECEIVED = 0x0203, // Message has been received
-    LNT_MSGREPLIED = 0x0204, // Message has been replied
-    LNT_MSGDEATH = 0x0205, // Message died beca= use of, failure
-
-    LNT_SEMAPHORE = 0x0300, // Element of Semaphore list
-
-    LNT_MODULE = 0x0400, // Element of Module list
-    LNT_DRIVER = 0x0401, // Element of Driver list
-    LNT_SHARED = 0x0402, // Element of Shared list
-    LNT_SUBCODE = 0x0404, // Just a job in modInit()
-
-    LNT_LOWIRQ = 0x0500, // For IRQ management lists.
-    LNT_IRQSERVER = 0x0501, // Highlevel IRQ server handler node
-
-    LNT_PROCESS = 0x0600, // A system process
-    LNT_THREAD = 0x0601, // A process thread
-
-    LNT_NAMEDNODE = 0x0e00, // A named node
-    LNT_NAMEDNODEP = 0x0e01, // A named node in a MemPool
-
-    //**-- Defined CaOS subsystems Nodes. Details on subsystem LNT_???
-    //**-- you may find in the subsystem headerfile.
-
-    LNT_GRAPHICS = 0x1000, // reserved for subsystem (0x1000-0x1fff)
-    LNT_AUDIO = 0x2000, // reserved for subsystem (0x2000-0x2fff)
-    LNT_INPUT = 0x3000, // reserved for subsystem (0x3000-0x3fff)
-    LNT_GUIMGR = 0x4000, // reserved for subsystem (0x4000-0x4fff)
-    LNT_NETWORK = 0x5000, // reserved for subsystem (0x5000-0x5fff)
-    LNT_DOS = 0x6000, // reserved for subsystem (0x6000-0x6fff)
-    LNT_SETTINGS = 0x7000, // reserved for subsystem (0x7000-0x70ff)
-
-    //**-- User Programs may use any number higher ,,,
-
-    LNT_USERTYPE = 0x8000 // User node types starts here
-}
-
 /** A D implementation of a double-linked list
  *
  * This is a minimalistic approach. No extra features. Just the the list.
@@ -81,36 +25,19 @@ enum ListNodeType : ushort {
  * The list uses a head and tail node. User nodes are placed between these
  * two nodes. The empty list consists of just these two nodes.
  */
-struct LinkedList(bool hasExtras = true) {
-    static if (hasExtras) {
-        static LinkedListHead* makeHead(ListNodeType type = ListNodeType.LNT_UNKNOWN, string name = "")
-            => LinkedListHead.makeHead(type, name);
-        static LinkedListNode* makeNode(ListNodeType type = ListNodeType.LNT_UNKNOWN, short pri = 0, string name = "")
-            => LinkedListHead.makeNode(type, pri, name);
-    } else {
-        static LinkedListHead* makeHead() => LinkedListHead.makeHead();
-        static LinkedListNode* makeNode() => LinkedListHead.makeNode();
-    }
+struct LinkedList(EHT = void, ENT = void) {
 
     /** The List Node.
-    **
-    ** This structure is the usually first element of a structure, but could
-    ** be located everywhere in the structure. It can be used
+    *
+    * This structure is the usually first element of a structure, but could
+    * be located everywhere in the structure. It can be used
     */
     struct LinkedListNode {
         LinkedListNode* ln_Succ; /// Pointer to next ListNode (Successor)
         LinkedListNode* ln_Pred; /// Pointer to previous ListNode (Predecessor)
 
-        static if (hasExtras) {
-            ListNodeType ln_Type; /// A type number
-            short ln_Priority; /// Signed priority, for sorting
-            string ln_Name; /// Pointer to a C String
-
-            this(ListNodeType type, short pri, string name) {
-                ln_Type = type;
-                ln_Priority = pri;
-                ln_Name = name;
-            }
+        static if (!is(ENT == void)) {
+            ENT data; /// Embedded payload data
         }
 
         /// The tail node has no successor and is part of ListHead
@@ -258,8 +185,7 @@ struct LinkedList(bool hasExtras = true) {
         }
     }
 
-    /************************************************************************
-    ** The List Header - simply two merged list nodes.
+    /** The List Header - simply two merged list nodes.
     **
     ** The ListHead is the Head and Tail node in a single structure.
     **
@@ -280,36 +206,23 @@ struct LinkedList(bool hasExtras = true) {
         LinkedListNode* lh_Tail;
         LinkedListNode* lh_TailPred;
     public:
-        static if (hasExtras) {
-            /* The type and the human readable name of the list. Can be used to
-            enforce node types matching the list type. */
-            ListNodeType lh_Type;
-            string lh_Name;
-
-            this(ListNodeType type, string name) {
-                this.lh_Type = type;
-                this.lh_Name = name;
-            }
+        static if (!is(EHT == void)) {
+            EHT data;
         }
-
-        /// Access to headNode
-        @property auto ref headNode() => *getHeadNode;
-        /// Access to tailNode
-        @property auto ref tailNode() => *getTailNode;
 
         /** Get the 'head node'
         *
         * Note: The cast operation is hidden inside this function.
         * Returns: Ptr to the 'head node'
         */
-        auto getHeadNode() => cast(LinkedListNode*)&(this.lh_Head);
+        auto getHeadNode() => cast(LinkedListNode*)(&(this.lh_Head));
 
         /** Get the 'tail node'
         *
         * Note: The cast operation is hidden inside this function.
         * Returns: Ptr to the 'tail node'
         */
-        auto getTailNode() => (cast(LinkedListNode*)&(this.lh_Tail));
+        auto getTailNode() => cast(LinkedListNode*)(&(this.lh_Tail));
 
         /** Is this list empty?
         *
@@ -593,125 +506,6 @@ struct LinkedList(bool hasExtras = true) {
             return node.remNode;
         }
 
-        static if (hasExtras) {
-            /** addNodeSorted -- insert a node into a list by ln_Priority field
-            *
-            * Insert or append a node to a system queue.  The insert is
-            * performed based on the node priority -- it will keep the list
-            * properly sorted.  New nodes will be inserted in front of the first
-            * node with a lower priority.   Hence a FIFO queue for nodes of equal
-            * priority results
-            *
-            * Params:
-            *   this - a pointer to the target list header
-            *   node - the node to insert
-            *
-            * Returns:
-            *   Your list is larger by one node.
-            *
-            * Example:
-            *   ListHead myList;
-            *   ListNode* myNode;
-            *  	...
-            *  	myList.addNodeSorted( , myNode );
-            *
-            * Notes:
-            *   This function does not arbitrate for access to the list.  The
-            *   calling task must be the owner of the involved list.
-            *
-            * Bugs:
-            *   none
-            *
-            * See:
-            *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
-            *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
-            */
-            void addNodeSorted(ref LinkedListNode node) {
-
-                LinkedListNode* insertNode;
-                for (
-                    insertNode = this.getHeadNode.getNextNode; !insertNode.isNodeTail;
-                    insertNode = insertNode.getNextNode()) {
-                    if (node.ln_Priority >= insertNode.ln_Priority)
-                        break;
-                }
-                node.addNode(this, insertNode);
-            }
-
-            /** findNode -- find a node by name
-            *
-            * Traverse a system list until a node with the given name is found.
-            * To find multiple occurrences of a string, this function may be
-            * called with a node starting point.
-            *
-            * No arbitration is done for access to the list! If multiple tasks
-            * access the same list, an arbitration mechanism such as
-            * Semaphores must be used.
-            *
-            * Params:
-            *   list - a pointer to the target list header
-            *   name - a pointer to a name string terminated with null
-            *
-            * Returns:
-            *   A pointer to the node with the same name, else
-            *   null to indicate that the string was not found.
-            *
-            * Example:
-            *   ListNode* myNode;
-            *   	...
-            *   	if ( myNode = myList.findNode("FooBar" ))
-            *   	{
-            *   		...
-            *   	}
-            *
-            * Notes:
-            *   This function does not arbitrate for access to the list.  The
-            *   calling task must be the owner of the involved list.
-            *
-            * Bugs:
-            *   none
-            *
-            * See:
-            *   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
-            *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
-            *
-            */
-            LinkedListNode* findNode(string name) {
-                for (ListNode* node = this.getHeadNode.getNextNode(); !node.isNodeTail();
-                    node = node.getNextNode()) {
-                    if (node.ln_Name.length && node.ln_Name == name)
-                        return node;
-                }
-                return null;
-            }
-
-            /** Generator to create a ListHead on heap, optionally setting other fields */
-            static LinkedListHead* makeHead(ListNodeType type = ListNodeType.LNT_UNKNOWN, string name = "") {
-                auto head = new LinkedListHead(type, name);
-                head.initListHead;
-                return head;
-            }
-
-            /** Generator to create a ListNode on heap, optionally setting other fields */
-            static ListNode* makeNode(ListNodeType type = ListNodeType.LNT_UNKNOWN, short pri = 0, string name = "") {
-                auto node = new LinkedListNode(type, pri, name);
-                return node;
-            }
-        } else {
-            /** Generator to create a ListHead on heap */
-            static LinkedListHead* makeHead() {
-                auto head = new LinkedListHead();
-                head.initListHead;
-                return head;
-            }
-
-            /** Generator to create a ListNode on heap, optionally setting other fields */
-            static LinkedListNode* makeNode() {
-                auto node = new LinkedListNode();
-                return node;
-            }
-        }
-
         /// opApply for foreach
         int opApply(scope int delegate(ref LinkedListNode) dg) {
             for (LinkedListNode* node = this.getHeadNode.getNextNode(); !node.isNodeTail();
@@ -739,32 +533,231 @@ struct LinkedList(bool hasExtras = true) {
     }
 }
 
-alias List = LinkedList!true;
+alias TinyList = LinkedList!(void, void);
+alias TinyNode = TinyList.LinkedListNode;
+alias TinyHead = TinyList.LinkedListHead;
+
+/** Generator to create a ListHead on heap */
+TinyHead* makeHead() {
+    auto listHead = new TinyHead();
+    listHead.initListHead;
+    return listHead;
+}
+
+/** Generator to create a ListNode on heap, optionally setting other fields */
+TinyNode* makeNode() {
+    auto listNode = new TinyNode();
+    return listNode;
+}
+
+/* -------- Example of extended LinkedList data -------------------- */
+
+/** Type definitions for 'extended' LinkedListNodes
+ *
+ * Examples for a set of node type as it was used in ancient OSes ;-)
+ */
+enum ListNodeType : ushort {
+    LNT_UNKNOWN = 0x0000, // For anything not found below
+
+    //-- Nodes for system.library services ---
+    LNT_RESOURCE = 0x0001, // A Hardware description node
+    LNT_MEMORY = 0x0100, // For physical Memory management
+    LNT_VIRTMEM = 0x0101, // For virtual Memory management
+    LNT_PAGEMEM = 0x0102, // For paged memory management
+    LNT_MEMLIST = 0x0103, // For MemList Structures
+    LNT_MEMPOOL = 0x0104, // For MemPools
+    LNT_MEMHANDLER = 0x0105, // For MemHandler
+
+    LNT_MSGQUEUE = 0x0200, // For the MsgPort list
+    LNT_MSGIDLE = 0x0201, // Message currently not in use
+    LNT_MSGSENT = 0x0202, // Message has been send
+    LNT_MSGRECEIVED = 0x0203, // Message has been received
+    LNT_MSGREPLIED = 0x0204, // Message has been replied
+    LNT_MSGDEATH = 0x0205, // Message died beca= use of, failure
+
+    LNT_SEMAPHORE = 0x0300, // Element of Semaphore list
+
+    LNT_MODULE = 0x0400, // Element of Module list
+    LNT_DRIVER = 0x0401, // Element of Driver list
+    LNT_SHARED = 0x0402, // Element of Shared list
+    LNT_SUBCODE = 0x0404, // Just a job in modInit()
+
+    LNT_LOWIRQ = 0x0500, // For IRQ management lists.
+    LNT_IRQSERVER = 0x0501, // Highlevel IRQ server handler node
+
+    LNT_PROCESS = 0x0600, // A system process
+    LNT_THREAD = 0x0601, // A process thread
+
+    LNT_NAMEDNODE = 0x0e00, // A named node
+    LNT_NAMEDNODEP = 0x0e01, // A named node in a MemPool
+
+    //**-- Defined CaOS subsystems Nodes. Details on subsystem LNT_???
+    //**-- you may find in the subsystem headerfile.
+
+    LNT_GRAPHICS = 0x1000, // reserved for subsystem (0x1000-0x1fff)
+    LNT_AUDIO = 0x2000, // reserved for subsystem (0x2000-0x2fff)
+    LNT_INPUT = 0x3000, // reserved for subsystem (0x3000-0x3fff)
+    LNT_GUIMGR = 0x4000, // reserved for subsystem (0x4000-0x4fff)
+    LNT_NETWORK = 0x5000, // reserved for subsystem (0x5000-0x5fff)
+    LNT_DOS = 0x6000, // reserved for subsystem (0x6000-0x6fff)
+    LNT_SETTINGS = 0x7000, // reserved for subsystem (0x7000-0x70ff)
+
+    //**-- User Programs may use any number higher ,,,
+
+    LNT_USERTYPE = 0x8000 // User node types starts here
+}
+
+/** The type and the human readable name of the list head.
+ *
+ * Can be used to enforce node types matching the list type.
+ */
+struct LinkListHeadExtras {
+
+    ListNodeType lh_Type; /// A type number
+    string lh_Name; /// Pointer to a C String
+}
+
+/** The type and the human readable name of the list node.
+ *
+ * Can be used to enforce node types matching the list type,
+ * name nodes or sort them by priority.
+ */
+struct LinkListNodeExtras {
+    ListNodeType ln_Type; /// A type number
+    short ln_Priority; /// Signed priority, for sorting
+    string ln_Name; /// Pointer to a C String
+}
+
+alias List = LinkedList!(LinkListHeadExtras, LinkListNodeExtras);
 alias ListNode = List.LinkedListNode;
 alias ListHead = List.LinkedListHead;
 
-alias TinyList = LinkedList!false;
-alias TinyNode = TinyList.LinkedListNode;
-alias TinyHead = TinyList.LinkedListHead;
+/** Generator to create a ListHead on heap */
+ListHead* makeHead(ListNodeType type = ListNodeType.LNT_UNKNOWN, string name = null) {
+    auto listHead = new ListHead();
+    listHead.initListHead;
+    listHead.data = LinkListHeadExtras(type, name);
+    return listHead;
+}
+
+/** Generator to create a ListNode on heap, optionally setting other fields */
+ListNode* makeNode(ListNodeType type = ListNodeType.LNT_UNKNOWN, short pri = 0, string name = null) {
+    auto listNode = new ListNode();
+    listNode.data = LinkListNodeExtras(type, pri, name);
+    return listNode;
+}
+
+/** addNodeSorted -- insert a node into a list by ln_Priority field
+*
+* Insert or append a node to a system queue.  The insert is
+* performed based on the node priority -- it will keep the list
+* properly sorted.  New nodes will be inserted in front of the first
+* node with a lower priority.   Hence a FIFO queue for nodes of equal
+* priority results
+*
+* Params:
+*   this - a pointer to the target list header
+*   node - the node to insert
+*
+* Returns:
+*   Your list is larger by one node.
+*
+* Example:
+*   ListHead myList;
+*   ListNode* myNode;
+*  	...
+*  	myList.addNodeSorted( , myNode );
+*
+* Notes:
+*   This function does not arbitrate for access to the list.  The
+*   calling task must be the owner of the involved list.
+*
+* Bugs:
+*   none
+*
+* See:
+*   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
+*   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
+*/
+void addNodeSorted(ListHead* listHead, ref ListNode node) {
+
+    ListNode* insertNode;
+    for (
+        insertNode = listHead.getHeadNode.getNextNode; !insertNode.isNodeTail; insertNode = insertNode.getNextNode()) {
+        if (node.data.ln_Priority >= insertNode.data.ln_Priority)
+            break;
+    }
+    node.addNode(*listHead, insertNode);
+}
+
+/** findNode -- find a node by name
+*
+* Traverse a system list until a node with the given name is found.
+* To find multiple occurrences of a string, this function may be
+* called with a node starting point.
+*
+* No arbitration is done for access to the list! If multiple tasks
+* access the same list, an arbitration mechanism such as
+* Semaphores must be used.
+*
+* Params:
+*   list - a pointer to the target list header
+*   name - a pointer to a name string terminated with null
+*
+* Returns:
+*   A pointer to the node with the same name, else
+*   null to indicate that the string was not found.
+*
+* Example:
+*   ListNode* myNode;
+*   	...
+*   	if ( myNode = myList.findNode("FooBar" ))
+*   	{
+*   		...
+*   	}
+*
+* Notes:
+*   This function does not arbitrate for access to the list.  The
+*   calling task must be the owner of the involved list.
+*
+* Bugs:
+*   none
+*
+* See:
+*   initListHead(), addNode(), remNode(), addNodeHead(), remNodeHead(),
+*   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
+*
+*/
+ListNode* findNode(ListHead* listHead, string name) {
+    for (ListNode* node = listHead.getHeadNode.getNextNode(); !node.isNodeTail();
+        node = node.getNextNode()) {
+        if (node.data.ln_Name.length && node.data.ln_Name == name)
+            return node;
+    }
+    return null;
+}
 
 /* ---------------------------------------------------------------------*/
 
 version (unittest) {
 
     void testLinkedListNode(T)() {
-        auto lh = T.makeHead;
+        static if (is(T == List))
+            T.LinkedListHead* lh = makeHead(ListNodeType.LNT_AUDIO, "test list");
+        else
+            T.LinkedListHead* lh = makeHead();
 
-        assertThrown!AssertError(lh.headNode.getPrevNode());
-        assertThrown!AssertError(lh.tailNode.getNextNode());
+        assertThrown!AssertError(lh.getHeadNode.getPrevNode());
+        assertThrown!AssertError(lh.getTailNode.getNextNode());
 
         static if (is(T == List)) {
-            auto node1 = T.makeNode(ListNodeType.LNT_UNKNOWN, 1, "A");
-            auto node2 = T.makeNode(ListNodeType.LNT_UNKNOWN, 2, "B");
-            auto node3 = T.makeNode(ListNodeType.LNT_UNKNOWN, 3, "C");
+            auto node1 = makeNode(ListNodeType.LNT_UNKNOWN, 1, "A");
+            auto node2 = makeNode(ListNodeType.LNT_UNKNOWN, 2, "B");
+            auto node3 = makeNode(ListNodeType.LNT_UNKNOWN, 3, "C");
         } else {
-            auto node1 = T.makeNode();
-            auto node2 = T.makeNode();
-            auto node3 = T.makeNode();
+            auto node1 = makeNode();
+            auto node2 = makeNode();
+            auto node3 = makeNode();
         }
         auto nodes = [node1, node2, node3];
         foreach (node; nodes)
@@ -777,7 +770,7 @@ version (unittest) {
         int idx = 3;
         for (auto nd = lh.getHeadNode.getNextNode; !nd.isNodeTail; nd = nd.getNextNode) {
             static if (is(T == List)) {
-                assert(nd.ln_Priority == idx);
+                assert(nd.data.ln_Priority == idx);
             }
             idx--;
         }
@@ -796,7 +789,7 @@ version (unittest) {
 
             // writeln(*nd);
             static if (is(T == List)) {
-                assert(nd.ln_Priority == idx);
+                assert(nd.data.ln_Priority == idx);
             }
             idx++;
         }
@@ -823,16 +816,20 @@ version (unittest) {
         import std.stdio : writeln, writefln;
         import std.format : format;
 
-        auto lh = T.makeHead();
+        static if (is(T == List))
+            T.LinkedListHead* lh = makeHead(ListNodeType.LNT_DOS, "test list");
+        else
+            T.LinkedListHead* lh = makeHead();
         assert(lh.isListEmpty == true);
-        assert(lh.headNode == *lh.getHeadNode);
-        assert(lh.tailNode == *lh.getTailNode);
+        assert(lh.getHeadNode.isNodeHead);
+        assert(lh.getTailNode.isNodeTail);
 
         static if (is(T == List)) {
-            auto node1 = T.LinkedListNode(ListNodeType.LNT_MEMHANDLER, 42, "Test 1");
-            assert(node1.ln_Type == ListNodeType.LNT_MEMHANDLER);
-            assert(node1.ln_Priority == 42);
-            assert(node1.ln_Name == "Test 1");
+            auto node1 = T.LinkedListNode();
+            node1.data = typeof(node1.data)(ListNodeType.LNT_MEMHANDLER, 42, "Test 1");
+            assert(node1.data.ln_Type == ListNodeType.LNT_MEMHANDLER);
+            assert(node1.data.ln_Priority == 42);
+            assert(node1.data.ln_Name == "Test 1");
         } else {
             auto node1 = T.LinkedListNode();
         }
@@ -845,10 +842,11 @@ version (unittest) {
         assert(node1.getNextNode.isNodeTail);
 
         static if (is(T == List)) {
-            auto node2 = T.LinkedListNode(ListNodeType.LNT_AUDIO, 43, "Test 2");
-            assert(node2.ln_Type == ListNodeType.LNT_AUDIO);
-            assert(node2.ln_Priority == 43);
-            assert(node2.ln_Name == "Test 2");
+            auto node2 = T.LinkedListNode();
+            node2.data = typeof(node2.data)(ListNodeType.LNT_AUDIO, 43, "Test 2");
+            assert(node2.data.ln_Type == ListNodeType.LNT_AUDIO);
+            assert(node2.data.ln_Priority == 43);
+            assert(node2.data.ln_Name == "Test 2");
         } else {
             auto node2 = T.LinkedListNode();
         }
@@ -865,10 +863,11 @@ version (unittest) {
         assert(cnt == 2);
 
         static if (is(T == List)) {
-            auto node3 = T.LinkedListNode(ListNodeType.LNT_AUDIO, 54, "Test 3");
-            assert(node3.ln_Type == ListNodeType.LNT_AUDIO);
-            assert(node3.ln_Priority == 54);
-            assert(node3.ln_Name == "Test 3");
+            auto node3 = T.LinkedListNode();
+            node3.data = typeof(node3.data)(ListNodeType.LNT_AUDIO, 54, "Test 3");
+            assert(node3.data.ln_Type == ListNodeType.LNT_AUDIO);
+            assert(node3.data.ln_Priority == 54);
+            assert(node3.data.ln_Name == "Test 3");
         } else {
             auto node3 = T.LinkedListNode();
         }
@@ -896,10 +895,11 @@ version (unittest) {
         }
 
         static if (is(T == List)) {
-            ListNode node4 = ListNode(ListNodeType.LNT_AUDIO, 50, "Test 4");
-            assert(node4.ln_Type == ListNodeType.LNT_AUDIO);
-            assert(node4.ln_Priority == 50);
-            assert(node4.ln_Name == "Test 4");
+            ListNode node4 = T.LinkedListNode();
+            node4.data = typeof(node4.data)(ListNodeType.LNT_AUDIO, 50, "Test 4");
+            assert(node4.data.ln_Type == ListNodeType.LNT_AUDIO);
+            assert(node4.data.ln_Priority == 50);
+            assert(node4.data.ln_Name == "Test 4");
 
             lh.addNodeSorted(node4);
             assert(node4.getPrevNode == &node1);
@@ -918,9 +918,9 @@ version (unittest) {
 
         foreach (short idx; 0 .. 10) {
             static if (is(T == List)) {
-                auto node = lh.makeNode(ListNodeType.LNT_UNKNOWN, idx, format("Node%02d", idx));
+                auto node = makeNode(ListNodeType.LNT_UNKNOWN, idx, format("Node%02d", idx));
             } else {
-                auto node = lh.makeNode();
+                T.LinkedListNode* node = makeNode();
             }
             lh.addNodeTail(*node);
         }
@@ -935,7 +935,7 @@ version (unittest) {
         foreach (ref key; *lh) {
             // writefln("%s", key);
             static if (is(T == List)) {
-                if (key.ln_Priority >= 2)
+                if (key.data.ln_Priority >= 2)
                     break;
             } else {
                 if (i++ > 2)
@@ -1035,10 +1035,6 @@ public:
     }
 }
 
-class LinkedListRangeTweak(T) {
-
-}
-
 version (unittest) {
     private void testRanges(U)() {
         import std.conv : to;
@@ -1062,9 +1058,9 @@ version (unittest) {
             foreach (short idx; 0 .. cnt) {
                 static if (is(U == List)) {
                     auto str = format("Node%02d", start + idx);
-                    U.LinkedListNode* node = U.makeNode(ListNodeType.LNT_UNKNOWN, (start + idx).to!short, str);
+                    U.LinkedListNode* node = makeNode(ListNodeType.LNT_UNKNOWN, (start + idx).to!short, str);
                 } else {
-                    U.LinkedListNode* node = U.makeNode();
+                    U.LinkedListNode* node = makeNode();
                 }
                 if (v)
                     writefln("%c%02d: %s", fill, idx, *node);
@@ -1110,7 +1106,7 @@ version (unittest) {
         assert(rng3.length == 0);
         assert(rng4.length == 20);
 
-        foreach (idx, ref node; rng3.listHead) {
+        foreach (idx, ref node; rng4.listHead) {
             if (v)
                 writefln("C%02d: %s", idx, node);
         }
