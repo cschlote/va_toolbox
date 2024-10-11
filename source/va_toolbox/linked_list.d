@@ -538,15 +538,15 @@ alias TinyNode = TinyList.LinkedListNode;
 alias TinyHead = TinyList.LinkedListHead;
 
 /** Generator to create a ListHead on heap */
-TinyHead* makeHead() {
-    auto listHead = new TinyHead();
+T.LinkedListHead* makeHead(T)() {
+    auto listHead = new T.LinkedListHead();
     listHead.initListHead;
     return listHead;
 }
 
 /** Generator to create a ListNode on heap, optionally setting other fields */
-TinyNode* makeNode() {
-    auto listNode = new TinyNode();
+T.LinkedListNode* makeNode(T)() {
+    auto listNode = new T.LinkedListNode();
     return listNode;
 }
 
@@ -743,13 +743,37 @@ ListNode* findNode(ListHead* list, string name) {
 
 /* ---------------------------------------------------------------------*/
 
+mixin template LinkedListExtraTest()
+{
+    ubyte[4096] block;
+}
+alias BlockList = LinkedList!(LinkListNodeExtras, LinkedListExtraTest);
+alias BlockListNode = BlockList.LinkedListNode;
+alias BlockListHead = BlockList.LinkedListHead;
+
+/** Generator to create a ListHead on heap */
+// BlockListHead* makeHead() {
+//     auto listHead = new BlockListHead();
+//     listHead.initListHead;
+//     return listHead;
+// }
+
+/** Generator to create a ListNode on heap, optionally setting other fields */
+BlockListNode* makeNode(ubyte[] block) {
+    auto listNode = new BlockListNode();
+    listNode.block = block;
+    return listNode;
+}
+
+/* ---------------------------------------------------------------------*/
+
 version (unittest) {
 
     void testLinkedListNode(T)() {
         static if (is(T == List))
             T.LinkedListHead* lh = makeHead(ListNodeType.LNT_AUDIO, "test list");
         else
-            T.LinkedListHead* lh = makeHead();
+            T.LinkedListHead* lh = makeHead!T();
 
         assertThrown!AssertError(lh.getHeadNode.getPrevNode());
         assertThrown!AssertError(lh.getTailNode.getNextNode());
@@ -759,9 +783,9 @@ version (unittest) {
             auto node2 = makeNode(ListNodeType.LNT_UNKNOWN, 2, "B");
             auto node3 = makeNode(ListNodeType.LNT_UNKNOWN, 3, "C");
         } else {
-            auto node1 = makeNode();
-            auto node2 = makeNode();
-            auto node3 = makeNode();
+            auto node1 = makeNode!T();
+            auto node2 = makeNode!T();
+            auto node3 = makeNode!T();
         }
         auto nodes = [node1, node2, node3];
         foreach (node; nodes)
@@ -815,6 +839,11 @@ unittest {
     testLinkedListNode!List();
 }
 
+@("LinkedList: BlockList node methods tests")
+unittest {
+    testLinkedListNode!BlockList();
+}
+
 version (unittest) {
     void testLinkedListHead(T)() {
         import std.stdio : writeln, writefln;
@@ -823,7 +852,7 @@ version (unittest) {
         static if (is(T == List))
             T.LinkedListHead* lh = makeHead(ListNodeType.LNT_DOS, "test list");
         else
-            T.LinkedListHead* lh = makeHead();
+            T.LinkedListHead* lh = makeHead!T();
         assert(lh.isListEmpty == true);
         assert(lh.getHeadNode.isNodeHead);
         assert(lh.getTailNode.isNodeTail);
@@ -920,7 +949,7 @@ version (unittest) {
             static if (is(T == List)) {
                 auto node = makeNode(ListNodeType.LNT_UNKNOWN, idx, format("Node%02d", idx));
             } else {
-                T.LinkedListNode* node = makeNode();
+                T.LinkedListNode* node = makeNode!T();
             }
             lh.addNodeTail(*node);
         }
@@ -962,6 +991,11 @@ unittest {
 @("LinkedList: List methods tests")
 unittest {
     testLinkedListHead!List();
+}
+
+@("LinkedList: BlockList methods tests")
+unittest {
+    testLinkedListHead!BlockList();
 }
 
 /* ---------------------------------------------------------------------*/
@@ -1060,7 +1094,7 @@ version (unittest) {
                     auto str = format("Node%02d", start + idx);
                     U.LinkedListNode* node = makeNode(ListNodeType.LNT_UNKNOWN, (start + idx).to!short, str);
                 } else {
-                    U.LinkedListNode* node = makeNode();
+                    U.LinkedListNode* node = makeNode!U();
                 }
                 if (v)
                     writefln("%c%02d: %s", fill, idx, *node);
@@ -1121,6 +1155,11 @@ unittest {
 @("LinkedList: Test ranges interface for List")
 unittest {
     testRanges!(List)();
+}
+
+@("LinkedList: Test ranges interface for BlockList")
+unittest {
+    testRanges!(BlockList)();
 }
 
 /*******************************************************************************
