@@ -16,9 +16,11 @@
 			"label": "dub: Test va_toolbox ALL tests",
 			"detail": "dub test --compiler=ldc2 -a=x86_64 -b=debug -c=application",
 			"test": true,
-			"dub_args": [ "--","-t1", "-v"]
-			// "dub_args": [ "--","-t1", "-v", "-i", "Test generateBurningShipImage"]
-			// "dub_args": [ "--","-t1", "-v", "-i", "Testing toDiffDump"]
+			"dub_args": [
+				"--",
+				"-t1",
+				"-v"
+			]
 		},
 		{
 			"type": "dub",
@@ -35,12 +37,43 @@
 			"label": "dub: Test va_toolbox SOME tests",
 			"detail": "dub test --compiler=ldc2 -a=x86_64 -b=debug -c=application",
 			"test": true,
-			// "dub_args": [ "--","-t1", "-v"]
-			// "dub_args": [ "--","-t1", "-v", "-i", "Test generateBurningShipImage"]
-			// "dub_args": [ "--","-t1", "-v", "-i", "Testing toDiffDump"]
-			// "dub_args": [ "--","-t1", "-v", "-i", "Testing mapIterToColor"]
-			"dub_args": [ "--","-t1", "-v", "-i", "Test SimpleBMPImage"]
-
+			"dub_args": [
+				"--",
+				"-t1",
+				"-v",
+				"-i",
+				"Test SimpleBMPImage"
+			]
+		},
+		{
+			"type": "dub",
+			"run": false,
+			"cwd": "${workspaceFolder}",
+			"compiler": "$current",
+			"archType": "$current",
+			"buildType": "$current",
+			"configuration": "$current",
+			"problemMatcher": [
+				"$dmd"
+			],
+			"group": "build",
+			"label": "dub: Build va_toolbox",
+			"detail": "dub build --compiler=ldc2 -a=x86_64 -b=debug -c=library"
+		},
+		{
+			"type": "dub",
+			"run": false,
+			"cwd": "${workspaceFolder}",
+			"compiler": "$current",
+			"archType": "$current",
+			"buildType": "ddox",
+			"configuration": "$current",
+			"problemMatcher": [
+				"$dmd"
+			],
+			"group": "build",
+			"label": "dub: Build DDox",
+			"detail": "dub build --build=ddox --compiler=ldc2 -a=x86_64 -b=debug -c=library"
 		}
 	]
 }

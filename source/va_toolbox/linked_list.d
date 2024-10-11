@@ -92,10 +92,11 @@ struct LinkedList(EHT = void, ENT = void) {
         * faster for that special case. Passing the tailNode of the list adds
         * the node to the end of the list. Again addNodeTail() might be faster.
         *
-        * Params:
         *   this - the node to insert AFTER...
-        *   list - a pointer to the target list header
-        *   prevNode - the node after which to insert, or null to add to list head
+        *
+        * Params:
+        *   list = a pointer to the target list header
+        *   prevNode = the node after which to insert, or null to add to list head
         *
         * Returns:
         *   Your list is larger by one node.
@@ -271,9 +272,9 @@ struct LinkedList(EHT = void, ENT = void) {
         * the node after the HEAD node and in front of the existing nodes.
         * There is always a TAIL node at least.
         *
-        * Params:
         *   this - a pointer to the target list header
-        *   node - the node to insert
+        * Params:
+        *   node = the node to insert
         *
         * Returns:
         *   Your list is larger by one node.
@@ -354,9 +355,9 @@ struct LinkedList(EHT = void, ENT = void) {
         * after the last existing node or the HEAD node, and in front of the TAIL node.
         * There is always a HEAD node.
         *
-        * Params:
         *   this - a pointer to the target list header
-        *   node - the node to insert
+        * Params:
+        *   node = the node to insert
         *
         * Returns:
         *   Your list is larger by one node and your node is added at tail of list.
@@ -439,10 +440,10 @@ struct LinkedList(EHT = void, ENT = void) {
         * zero value for node, though the addNodeHead function is slightly
         * faster for that special case.
         *
-        * Params:
         *   this - a pointer to the target list header
-        *   node - the node to insert
-        *   listNode - the node after which to insert
+        * Params:
+        *   node = the node to insert
+        *   listNode = the node after which to insert
         *
         * Returns:
         *   Your list is larger by one node.
@@ -475,7 +476,7 @@ struct LinkedList(EHT = void, ENT = void) {
         * of a list must not be passed to this function!
         *
         * Params:
-        *   node - the node to remove
+        *   node = the node to remove
         *
         * Returns:
         *   Your list is smaller by one node or empty. The returned value is your
@@ -554,7 +555,7 @@ TinyNode* makeNode() {
 
 /** Type definitions for 'extended' LinkedListNodes
  *
- * Examples for a set of node type as it was used in ancient OSes ;-)
+ * Examples for a set of node type as it was used in ancient OSes.
  */
 enum ListNodeType : ushort {
     LNT_UNKNOWN = 0x0000, // For anything not found below
@@ -656,8 +657,8 @@ ListNode* makeNode(ListNodeType type = ListNodeType.LNT_UNKNOWN, short pri = 0, 
 * priority results
 *
 * Params:
-*   this - a pointer to the target list header
-*   node - the node to insert
+*   listHead = a pointer to the target list header
+*   node = the node to insert
 *
 * Returns:
 *   Your list is larger by one node.
@@ -701,8 +702,8 @@ void addNodeSorted(ListHead* listHead, ref ListNode node) {
 * Semaphores must be used.
 *
 * Params:
-*   list - a pointer to the target list header
-*   name - a pointer to a name string terminated with null
+*   list = a pointer to the target list header
+*   name = a pointer to a name string terminated with null
 *
 * Returns:
 *   A pointer to the node with the same name, else
@@ -728,8 +729,8 @@ void addNodeSorted(ListHead* listHead, ref ListNode node) {
 *   addNodeTail(), remNodeTail(), addNodeSorted(), findNode()
 *
 */
-ListNode* findNode(ListHead* listHead, string name) {
-    for (ListNode* node = listHead.getHeadNode.getNextNode(); !node.isNodeTail();
+ListNode* findNode(ListHead* list, string name) {
+    for (ListNode* node = list.getHeadNode.getNextNode(); !node.isNodeTail();
         node = node.getNextNode()) {
         if (node.data.ln_Name.length && node.data.ln_Name == name)
             return node;
