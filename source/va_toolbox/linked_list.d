@@ -25,7 +25,8 @@ import std.conv;
  * The list uses a head and tail node. User nodes are placed between these
  * two nodes. The empty list consists of just these two nodes.
  */
-struct LinkedList(EHT = void, ENT = void) {
+
+struct LinkedList(alias EHT, alias ENT) {
 
     /** The List Node.
     *
@@ -36,9 +37,7 @@ struct LinkedList(EHT = void, ENT = void) {
         LinkedListNode* ln_Succ; /// Pointer to next ListNode (Successor)
         LinkedListNode* ln_Pred; /// Pointer to previous ListNode (Predecessor)
 
-        static if (!is(ENT == void)) {
-            ENT data; /// Embedded payload data
-        }
+        mixin ENT; /// Embedded payload data
 
         /// The tail node has no successor and is part of ListHead
         bool isNodeTail() => (this.ln_Succ == null) ? true : false;
@@ -207,9 +206,7 @@ struct LinkedList(EHT = void, ENT = void) {
         LinkedListNode* lh_Tail;
         LinkedListNode* lh_TailPred;
     public:
-        static if (!is(EHT == void)) {
-            EHT data;
-        }
+        mixin EHT;
 
         /** Get the 'head node'
         *
@@ -534,7 +531,9 @@ struct LinkedList(EHT = void, ENT = void) {
     }
 }
 
-alias TinyList = LinkedList!(void, void);
+mixin template LinkedListEmptyMixin() {
+}
+alias TinyList = LinkedList!(LinkedListEmptyMixin, LinkedListEmptyMixin);
 alias TinyNode = TinyList.LinkedListNode;
 alias TinyHead = TinyList.LinkedListHead;
 
@@ -612,7 +611,7 @@ enum ListNodeType : ushort {
  *
  * Can be used to enforce node types matching the list type.
  */
-struct LinkListHeadExtras {
+mixin template LinkListHeadExtras() {
 
     ListNodeType lh_Type; /// A type number
     string lh_Name; /// Pointer to a C String
@@ -623,7 +622,7 @@ struct LinkListHeadExtras {
  * Can be used to enforce node types matching the list type,
  * name nodes or sort them by priority.
  */
-struct LinkListNodeExtras {
+mixin template LinkListNodeExtras() {
     ListNodeType ln_Type; /// A type number
     short ln_Priority; /// Signed priority, for sorting
     string ln_Name; /// Pointer to a C String
@@ -637,14 +636,18 @@ alias ListHead = List.LinkedListHead;
 ListHead* makeHead(ListNodeType type = ListNodeType.LNT_UNKNOWN, string name = null) {
     auto listHead = new ListHead();
     listHead.initListHead;
-    listHead.data = LinkListHeadExtras(type, name);
+    listHead.lh_Type = type;
+    listHead.lh_Name = name;
     return listHead;
 }
 
 /** Generator to create a ListNode on heap, optionally setting other fields */
 ListNode* makeNode(ListNodeType type = ListNodeType.LNT_UNKNOWN, short pri = 0, string name = null) {
     auto listNode = new ListNode();
-    listNode.data = LinkListNodeExtras(type, pri, name);
+    // listNode.data = LinkListNodeExtras(type, pri, name);
+    listNode.ln_Type = type;
+    listNode.ln_Priority = pri;
+    listNode.ln_Name = name;
     return listNode;
 }
 
@@ -685,7 +688,7 @@ void addNodeSorted(ListHead* listHead, ref ListNode node) {
     ListNode* insertNode;
     for (
         insertNode = listHead.getHeadNode.getNextNode; !insertNode.isNodeTail; insertNode = insertNode.getNextNode()) {
-        if (node.data.ln_Priority >= insertNode.data.ln_Priority)
+        if (node.ln_Priority >= insertNode.ln_Priority)
             break;
     }
     node.addNode(*listHead, insertNode);
@@ -732,7 +735,7 @@ void addNodeSorted(ListHead* listHead, ref ListNode node) {
 ListNode* findNode(ListHead* list, string name) {
     for (ListNode* node = list.getHeadNode.getNextNode(); !node.isNodeTail();
         node = node.getNextNode()) {
-        if (node.data.ln_Name.length && node.data.ln_Name == name)
+        if (node.ln_Name.length && node.ln_Name == name)
             return node;
     }
     return null;
@@ -771,7 +774,7 @@ version (unittest) {
         int idx = 3;
         for (auto nd = lh.getHeadNode.getNextNode; !nd.isNodeTail; nd = nd.getNextNode) {
             static if (is(T == List)) {
-                assert(nd.data.ln_Priority == idx);
+                assert(nd.ln_Priority == idx);
             }
             idx--;
         }
@@ -790,7 +793,7 @@ version (unittest) {
 
             // writeln(*nd);
             static if (is(T == List)) {
-                assert(nd.data.ln_Priority == idx);
+                assert(nd.ln_Priority == idx);
             }
             idx++;
         }
@@ -827,10 +830,9 @@ version (unittest) {
 
         static if (is(T == List)) {
             auto node1 = T.LinkedListNode();
-            node1.data = typeof(node1.data)(ListNodeType.LNT_MEMHANDLER, 42, "Test 1");
-            assert(node1.data.ln_Type == ListNodeType.LNT_MEMHANDLER);
-            assert(node1.data.ln_Priority == 42);
-            assert(node1.data.ln_Name == "Test 1");
+            node1.ln_Type = ListNodeType.LNT_MEMHANDLER;
+            node1.ln_Priority = 42;
+            node1.ln_Name = "Test 1";
         } else {
             auto node1 = T.LinkedListNode();
         }
@@ -844,10 +846,9 @@ version (unittest) {
 
         static if (is(T == List)) {
             auto node2 = T.LinkedListNode();
-            node2.data = typeof(node2.data)(ListNodeType.LNT_AUDIO, 43, "Test 2");
-            assert(node2.data.ln_Type == ListNodeType.LNT_AUDIO);
-            assert(node2.data.ln_Priority == 43);
-            assert(node2.data.ln_Name == "Test 2");
+            node2.ln_Type = ListNodeType.LNT_AUDIO;
+            node2.ln_Priority = 43;
+            node2.ln_Name = "Test 2";
         } else {
             auto node2 = T.LinkedListNode();
         }
@@ -865,10 +866,9 @@ version (unittest) {
 
         static if (is(T == List)) {
             auto node3 = T.LinkedListNode();
-            node3.data = typeof(node3.data)(ListNodeType.LNT_AUDIO, 54, "Test 3");
-            assert(node3.data.ln_Type == ListNodeType.LNT_AUDIO);
-            assert(node3.data.ln_Priority == 54);
-            assert(node3.data.ln_Name == "Test 3");
+            node3.ln_Type = ListNodeType.LNT_AUDIO;
+            node3.ln_Priority = 54;
+            node3.ln_Name = "Test 3";
         } else {
             auto node3 = T.LinkedListNode();
         }
@@ -897,10 +897,9 @@ version (unittest) {
 
         static if (is(T == List)) {
             ListNode node4 = T.LinkedListNode();
-            node4.data = typeof(node4.data)(ListNodeType.LNT_AUDIO, 50, "Test 4");
-            assert(node4.data.ln_Type == ListNodeType.LNT_AUDIO);
-            assert(node4.data.ln_Priority == 50);
-            assert(node4.data.ln_Name == "Test 4");
+            node4.ln_Type = ListNodeType.LNT_AUDIO;
+            node4.ln_Priority = 50;
+            node4.ln_Name = "Test 4";
 
             lh.addNodeSorted(node4);
             assert(node4.getPrevNode == &node1);
@@ -936,7 +935,7 @@ version (unittest) {
         foreach (ref key; *lh) {
             // writefln("%s", key);
             static if (is(T == List)) {
-                if (key.data.ln_Priority >= 2)
+                if (key.ln_Priority >= 2)
                     break;
             } else {
                 if (i++ > 2)
