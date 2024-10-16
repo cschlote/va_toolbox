@@ -37,12 +37,11 @@
 			"label": "dub: Test va_toolbox SOME tests",
 			"detail": "dub test --compiler=ldc2 -a=x86_64 -b=debug -c=application",
 			"test": true,
-			"dub_args": [
-				"--",
+			"target_args": [
 				"-t1",
 				"-v",
 				"-i",
-				"Test SimpleBMPImage"
+				"Memory: Basic Ops"
 			]
 		},
 		{
@@ -74,6 +73,20 @@
 			"group": "build",
 			"label": "dub: Build DDox",
 			"detail": "dub build --build=ddox --compiler=ldc2 -a=x86_64 -b=debug -c=library"
+		},
+		{
+			"type": "shell",
+			"label": "Run linter on source.",
+			"group" : "build",
+			"command": "${cwd}/scripts/lint-sources.sh",
+			"detail": "Run linter on sources."
+		},
+		{
+			"type": "shell",
+			"label": "Run linter on scripts.",
+			"group" : "build",
+			"command": "${cwd}/scripts/lint-scripts.sh",
+			"detail": "Run linter on build scripts."
 		}
 	]
 }

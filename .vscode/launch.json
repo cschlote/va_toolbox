@@ -4,6 +4,7 @@
     // Weitere Informationen finden Sie unter https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+        
         {
             "type": "lldb",
             "request": "launch",
@@ -18,7 +19,7 @@
             "name": "Launch Test App",
             "program": "${workspaceFolder}/va_toolbox-test-application",
             // "args": ["--", "-t1", "-i", "Test generateBurningShipImage() CTFE"],
-            "args": ["--", "-t1", "-i", "LinkedList: List methods tests"],
+            "args": ["-t1", "-i", "Memory: Basic Ops"],
             "cwd": "${workspaceFolder}"
         },
         {
@@ -26,7 +27,7 @@
             "request": "launch",
             "name": "Launch Test Lib",
             "program": "${workspaceFolder}/va_toolbox-test-library",
-            "args": ["--", "-t1", "-i", "LinkedList: List methods tests"],
+            "args": ["-v", "-t1", "-i", "Memory: Basic Ops"],
             "cwd": "${workspaceFolder}"
         }
     ]
