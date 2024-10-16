@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
-set -ex
+set -exu pipefail
+
 
 echo "Nothing yet to deploy."

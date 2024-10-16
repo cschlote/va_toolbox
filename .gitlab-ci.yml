@@ -1,5 +1,8 @@
 # Use Ubuntu-based dev image with some D compilers and dub installed
-image: "gitlab.vahanus.net:5050/vahanus/public/container-ubuntu-dlang-dev:latest"
+defaults:
+  image: "gitlab.vahanus.net:5050/vahanus/public/container-ubuntu-dlang-dev:latest"
+  before_script:
+    - command -v image-info.sh && image-info.sh || true
 
 variables:
   # For non-Kubernetes executors, we use tcp://docker:2375
@@ -11,9 +14,6 @@ variables:
   DOCKER_DRIVER: overlay2
   # We can pass ENV vars to the pipeline
   VA_TEST: "abc"
-
-before_script:
-  - command -v image-info.sh && image-info.sh || true
 
 stages:
   - lint
@@ -28,7 +28,8 @@ lint d-language:
     - gitlabdocker
   stage: lint
   script:
-      - ./scripts/lint.sh | tee linter.log || true
+      - mkdir -p build
+      - ./scripts/lint-sources.sh | tee build/linter.log || true
       - if grep error linter.log ; then echo "found linter error"; false; fi
   cache:
     key: "DUB-CACHE"
@@ -37,7 +38,7 @@ lint d-language:
       - .dub/
   artifacts:
     paths:
-      - linter.log
+      - build/linter.log
 
 lint scripts:
   image: docker:latest
@@ -47,10 +48,13 @@ lint scripts:
     - gitlabdocker
   stage: lint
   script:
-    - echo "linting $CI_COMMIT_REF_NAME / $CI_COMMIT_SHA ..."
-    #- docker run --rm -i hadolint/hadolint < Dockerfile
-    - docker run -v "$PWD:/mnt" koalaman/shellcheck scripts/*.sh
-    - echo "Finished linting successfully."
+    - mkdir -p build
+    - ./scripts/lint-scripts.sh | tee build/linter2.log || true
+      - if grep error linter.log ; then echo "found linter error"; false; fi
+  artifacts:
+    paths:
+      - build/linter2.log
+
 
 #-- Build the application ---------------------------------------------------
 
@@ -86,6 +90,7 @@ test app:
   artifacts:
     paths:
       - libva_toolbox.json
+  coverage: '/\d+\.\d+\%? covered/'  # Regex für Coverage-Wert
 
 #-- Deploy the application --------------------------------------------------
 
