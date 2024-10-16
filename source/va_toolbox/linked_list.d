@@ -222,6 +222,18 @@ struct LinkedList(alias EHT, alias ENT) {
         */
         auto getTailNode() => cast(LinkedListNode*)(&(this.lh_Tail));
 
+        /** Get the successor of the 'head node'
+        *
+        * Returns: Ptr to the successor of the 'head node', possibly the tail node
+        */
+        auto getHeadSucc() => this.lh_Head;
+
+        /** Get the 'tail node'
+        *
+        * Returns: Ptr to the predessor of the 'tail node', possibly the head node
+        */
+        auto getTailPred() => this.lh_TailPred;
+
         /** Is this list empty?
         *
         * Returns:
@@ -751,7 +763,7 @@ alias BlockList = LinkedList!(LinkListNodeExtras, LinkedListExtraTest);
 alias BlockListNode = BlockList.LinkedListNode;
 alias BlockListHead = BlockList.LinkedListHead;
 
-/** Generator to create a ListHead on heap */
+/** Generator to create a ListHead on heap - we use the generic template constuctor */
 // BlockListHead* makeHead() {
 //     auto listHead = new BlockListHead();
 //     listHead.initListHead;
