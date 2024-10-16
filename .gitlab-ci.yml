@@ -1,5 +1,5 @@
 # Use Ubuntu-based dev image with some D compilers and dub installed
-defaults:
+default:
   image: "gitlab.vahanus.net:5050/vahanus/public/container-ubuntu-dlang-dev:latest"
   before_script:
     - command -v image-info.sh && image-info.sh || true
@@ -50,7 +50,7 @@ lint scripts:
   script:
     - mkdir -p build
     - ./scripts/lint-scripts.sh | tee build/linter2.log || true
-      - if grep error linter.log ; then echo "found linter error"; false; fi
+    - if grep error linter2.log ; then echo "found linter error"; false; fi
   artifacts:
     paths:
       - build/linter2.log
