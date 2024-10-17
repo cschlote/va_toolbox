@@ -13,24 +13,27 @@ module. So instead of rewriting, copying and modifying your code, just add it as
 
 ### Audio
 
-SOme game here. I hacked some code related to audio, and check, if the code can execute in CTFE mode.
+Some game here. I hacked some code related to audio, and check if the code can execute in CTFE mode.
 
-# How to compile?
+## How to compile?
+
 You can use:
+
 ```bash
-$ dub build
-$ dub test -- -v
+dub build
+dub test -- -v
 ```
+
 Visual Studio Code (VSC) can be used, because it has a cool D plugin and supports source level debugging.
 
-# Contents of this toolbox
+## Contents of this toolbox
 
 [x] = well matured, good coverage
 [+] = needs more examples
 [ ] = open
 
- - [x] Ima
- - [+] Audio: Precompute audio waveforms or data during compilation to reduce runtime processing and ensure consistency.
- - [+] Compile-Time Regular Expression Engine: Match patterns against strings at compile time, useful for validating or transforming strings.
- - [+] Compile-Time Code Generation: Generate specialized functions or classes based on compile-time parameters, such as serialization code. -> Hashed Enums
- - [ ] Compile-Time Parsing and Code Generation from Text Files: Parse custom configuration or markup languages at compile time to generate corresponding code or data structures.
+- [x] Image: Simple code to write BMP files
+- [+] Audio: Precompute audio waveforms or data during compilation to reduce runtime processing and ensure consistency.
+- [+] Compile-Time Regular Expression Engine: Match patterns against strings at compile time, useful for validating or transforming strings.
+- [+] Compile-Time Code Generation: Generate specialized functions or classes based on compile-time parameters, such as serialization code. -> Hashed Enums
+- [ ] Compile-Time Parsing and Code Generation from Text Files: Parse custom configuration or markup languages at compile time to generate corresponding code or data structures.

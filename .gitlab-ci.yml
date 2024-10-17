@@ -14,12 +14,15 @@ variables:
   DOCKER_DRIVER: overlay2
   # We can pass ENV vars to the pipeline
   VA_TEST: "abc"
+  # The Base-Path to the package-repository
+  CI_PKGBASE_URL: "$CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/generic/va-toolbox/$CI_COMMIT_TAG"
 
 stages:
   - lint
   - build
   - test
-  - deploy
+  - package
+  - release
 
 #-- Do linting on the supplied sources --------------------------------------
 
@@ -73,6 +76,7 @@ build app and docs:
     paths:
       - libva_toolbox.a
       - docs/
+      - docs.json
 
 #-- Test the application ----------------------------------------------------
 
@@ -89,32 +93,72 @@ test app:
       - .dub/
   artifacts:
     paths:
-      - libva_toolbox.json
+      - source*.lst
+      - coverage.json
   coverage: '/\d+\.\d+\%? covered/'  # Regex für Coverage-Wert
 
 #-- Deploy the application --------------------------------------------------
 
-deploy_staging:
+package-job:
   tags:
     - gitlabdocker
-  stage: deploy
+  stage: package
   script:
-    - ./scripts/deploy.sh
-  environment:
-    name: staging
-    url: https://packages.vahanus.net
-  only:
-    - main
+    - ./scripts/package.sh
+    - |
+      set -x
+      curl --header "JOB-TOKEN: $CI_JOB_TOKEN" \
+              --upload-file ./va-toolbox-bin.zip \
+              "$CI_PKGBASE_URL/va-toolbox-bin.zip"
+      curl --header "JOB-TOKEN: $CI_JOB_TOKEN" \
+              --upload-file ./va-toolbox-docs.zip \
+              "$CI_PKGBASE_URL/va-toolbox-docs.zip"
+      curl --header "JOB-TOKEN: $CI_JOB_TOKEN" \
+              --upload-file ./va-toolbox-coverage.zip \
+              "$CI_PKGBASE_URL/va-toolbox-coverage.zip"
+      set +x
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v.*/'
+      when: on_success
+  artifacts:
+    paths:
+      - va-toolbox-bin.zip
+      - va-toolbox-docs.zip
+      - va-toolbox-coverage.zip
 
-deploy_prod:
+pages:
   tags:
     - gitlabdocker
-  stage: deploy
+  stage: release
   script:
-    - echo "Deploy to production server"
-  environment:
-    name: production
-    url: https://packages.vahanus.net
-  when: manual
-  only:
-    - main
+    - echo "Create GitLab pages for branch $CI_COMMIT_REF_NAME"
+  rules:
+    # This ensures that only pushes to the default branch will trigger a pages deploy
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+  artifacts:
+    paths:
+      # The folder that contains the files to be exposed at the Page URL
+      - docs
+
+release-job:
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  tags:
+    - gitlabdocker
+  stage: release
+  script:
+    - echo "Create GitLab release for $CI_COMMIT_REF_NAME"
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v.*/'
+      when: on_success
+  release:
+    tag_name: $CI_COMMIT_TAG
+    name: "Release $CI_COMMIT_TAG"
+    description: "$CI_COMMIT_TAG_MESSAGE"
+    assets:
+      links:
+        - name: "Download Binary ZIP"
+          url: "$CI_PKGBASE_URL/va-toolbox-bin.zip"
+        - name: "Download Docs ZIP"
+          url: "$CI_PKGBASE_URL/va-toolbox-docs.zip"
+        - name: "Download Coverage ZIP"
+          url: "$CI_PKGBASE_URL/va-toolbox-coverage.zip"

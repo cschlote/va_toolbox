@@ -6,6 +6,7 @@ bool DEBUG = false;
 
 private void logF(T...)(T args) {
     import std.stdio : writef, stdout;
+
     if (DEBUG) {
         writef(args);
         stdout.flush;
@@ -14,16 +15,14 @@ private void logF(T...)(T args) {
 
 private void logFLine(T...)(T args) {
     import std.stdio : writefln, stdout;
+
     if (DEBUG) {
         writefln(args);
         stdout.flush;
     }
 }
 
-
 enum IPTRBITS = (void*).sizeof * 8;
-
-
 
 import std.conv;
 import core.stdc.string;
@@ -105,9 +104,11 @@ private void checkMungwall(ref void* mptr, ref size_t byteSize) {
     }
 
     size_t* lowerPtr = cast(size_t*)(mptr);
-    assert(memcmp(&lowerPtr[-1], FILLPATTERN_MUNGW1.ptr, size_t.sizeof) == 0, __FUNCTION__ ~ ": Mung1 corrupted." ~ dbgText());
+    assert(memcmp(&lowerPtr[-1], FILLPATTERN_MUNGW1.ptr, size_t.sizeof) == 0,
+        __FUNCTION__ ~ ": Mung1 corrupted." ~ dbgText());
     ubyte* upperPtr = cast(ubyte*)(mptr + byteSize);
-    assert(memcmp(upperPtr, FILLPATTERN_MUNGW2.ptr, size_t.sizeof) == 0, __FUNCTION__ ~ ": Mung2 corrupted." ~ dbgText());
+    assert(memcmp(upperPtr, FILLPATTERN_MUNGW2.ptr, size_t.sizeof) == 0,
+        __FUNCTION__ ~ ": Mung2 corrupted." ~ dbgText());
 
     // Clear Mungwall patterns
     lowerPtr[-1] = FILLPATTERN_FREE;
