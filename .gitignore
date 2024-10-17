@@ -1,4 +1,5 @@
 .dub
+coverage.json
 docs.json
 __dummy.html
 docs/
@@ -15,3 +16,4 @@ va_toolbox-test-*
 *.o
 *.obj
 *.lst
+*.zip
