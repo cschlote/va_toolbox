@@ -172,6 +172,10 @@ class SimpleBMPImage {
         return bmpData.toBytes(); //.data.to[0..bmpData.offset];
     }
 
+    /** Return the pixelarray as ubyte array.
+     *
+     * Returns: An inout(ubyte[]) array of the pixeldata.
+     */
     inout(ubyte[]) toBinary() const pure nothrow inout {
         ubyte[] a = cast(ubyte[]) pixels;
         auto sz = RGBPixel.sizeof * height * width;
@@ -340,5 +344,19 @@ unittest {
         assert(bmpData[] == expectBmpData, "Should be reference data.");
         imgObj.saveBMP("tests/tmp/u8pcm-2x2.bmp");
 
+    }
+    {
+        const float[] uintPmp = [10, 20, 30, 40];
+        auto imgObj = new SimpleBMPImage(2, 2, uintPmp);
+        auto bmpData = imgObj.encodeAsBMPData();
+        // writeln(bmpData);
+        static ubyte[] expectBmpData = [
+            66, 77, 66, 0, 0, 0, 0, 0, 0, 0, 54, 0, 0, 0, 40, 0, 0, 0, 2, 0, 0, 0,
+            2, 0, 0, 0, 1, 0, 24, 0, 0, 0, 0, 0, 12, 0, 0, 0, 184, 11, 0, 0, 184,
+            11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 63, 2, 5, 127, 5, 7, 191, 7, 10,
+            255, 10
+        ];
+        assert(bmpData[] == expectBmpData, "Should be reference data.");
+        imgObj.saveBMP("tests/tmp/float-2x2.bmp");
     }
 }
