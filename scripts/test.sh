@@ -5,4 +5,4 @@ set -ex
 dub test -b unittest-cov -- -v
 
 # Anlyse the coverage files
-./scripts/calcCoverage.d
+./scripts/calcCoverage.d -j coverage.json
