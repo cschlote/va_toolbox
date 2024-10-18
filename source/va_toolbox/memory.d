@@ -1,3 +1,15 @@
+/** Implementation of an Amiga-style memory allocator
+ *
+ * This an freelist based allocator with an API similiar to that
+ * found on AmigaOS. It includes some configuration options.
+ *
+ * This code needs much more changes and clean ups. Some configuration
+ * features should be templated.
+ *
+ * Authors: Carsten Schlote
+ * Copyright: Carsten Schlote, 2024
+ * License: GPL-3.0-only
+ */
 module va_toolbox.memory;
 
 import va_toolbox.linked_list;
