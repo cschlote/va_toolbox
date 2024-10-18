@@ -2,6 +2,8 @@
 
 A collection of sources for debugging, data analysis.
 
+Latest API documentation: http://dlang.pages.vahanus.net/va-toolbox/
+
 ## Background
 
 Over the years you write a lot of code. And most amazingly, we write a lot of code over and over again.
