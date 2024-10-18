@@ -132,6 +132,8 @@ pages:
   stage: release
   script:
     - echo "Create GitLab pages for branch $CI_COMMIT_REF_NAME"
+    - mv docs public
+    - du -h public
   rules:
     # This ensures that only pushes to the default branch will trigger a pages deploy
     - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
@@ -139,7 +141,7 @@ pages:
   artifacts:
     paths:
       # The folder that contains the files to be exposed at the Page URL
-      - docs
+      - public
 
 release-job:
   image: registry.gitlab.com/gitlab-org/release-cli:latest
