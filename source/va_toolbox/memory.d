@@ -43,9 +43,7 @@ import std.exception;
 import core.exception;
 
 /****************************************************************************
-** This are the COMPILE flags for basic debugging. The memory functions
-** are one of most important functions in CaOS. They must be extremly
-** stable.
+** This are the COMPILE flags for basic debugging.
 */
 enum bool DEALLOC_PATTERN = true; // Enable block fills
 enum bool ALLOC_PATTERN = true; // Enable block fills
@@ -203,11 +201,17 @@ struct MemHeader {
     void* mh_Upper; // upper memory bound+1
     TinyHead mh_ChunkList; // list of free memory regions
 
-    /** MemChunk - The node of a free mem segment */
+    /** MemChunk - The node of a free mem segment
+     *
+     * All free memory chunks are part of a linked list. That is the reason.
+     * why it is called a free-list allocator. The Chunk has at least
+     * MEM_BLOCKSIZE bytes granularity.
+     */
     struct MemChunk {
-        TinyNode mc_Node;
-        size_t mc_Bytes;
+        TinyNode mc_Node; /// Minimalistic listnode, just two pointers
+        size_t mc_Bytes; /// Size of this MemChunk.
     }
+
     /* Alignment rules for memory. The Block must be large enough to contain
     ** a MemChunk structure, as well a 2^n value for fast masking.
     */
@@ -278,7 +282,7 @@ struct MemHeader {
         /*************************************************************************
         ** Now prepare the first MemChunk
         */
-        mcp.mc_Bytes = size; // Number of bytes in this chunk (all bytes in this case)
+        mcp.mc_Bytes = size; // Number of bytes in this chunk (all remaining bytes in this case)
 
         mcp.mc_Node = TinyNode();
         mhp.mh_ChunkList.addNode(mcp.mc_Node); // Add to our list
@@ -325,9 +329,7 @@ struct MemHeader {
         logF(__FUNCTION__ ~ "( %08x,%08x,%08x ) = ", &this, byteSize, flags);
 
         if (byteSize && this.mh_Free >= byteSize) {
-            /*********************************************************************
-            ** Round up byteSize to next block boundary
-            */
+            /* Round up byteSize to next block boundary */
             byteSize = alignValUp(byteSize, MEM_BLOCKEXP);
 
             /* Now traverse the list to find a memchunk large enough for our
@@ -340,7 +342,7 @@ struct MemHeader {
                 currmc = cast(MemChunk*)(this.mh_ChunkList.getHeadSucc);
 
             while (currmc.mc_Node.isNodeReal) {
-                if (currmc.mc_Bytes >= byteSize)
+                if (currmc.mc_Bytes >= byteSize) // Stop on first node with enough space
                     break;
 
                 if (flags & MemFlags.MEMF_REVERSE)
@@ -364,18 +366,17 @@ struct MemHeader {
                 ** The next following code sequence expects the address of the
                 ** allocated area in mymem.
                 */
-                if (currmc.mc_Bytes == byteSize) //** Trivial case
+                if (currmc.mc_Bytes == byteSize) // Trivial case - perfect fit.
                 {
                     mymem = cast(void*) currmc.mc_Node.remNode;
-                } else //** Nontrival case
-                {
+                } else {
                     if (flags & MemFlags.MEMF_REVERSE) //** Allocation mode reverse ?
                     {
                         /* cut some space from the end of the current free chunk */
-                        currmc.mc_Bytes -= byteSize; //** Shorten MC
+                        currmc.mc_Bytes -= byteSize; // Shorten MemChunk
                         mymem = cast(MemChunk*)(cast(void*) currmc + currmc.mc_Bytes);
 
-                    } else //** Normal allocation mode.
+                    } else
                     {
                         /* cut some space from the start of a mem chunk. We must
                         ** create a new node at currnode + byteSize, and remove the
@@ -384,7 +385,7 @@ struct MemHeader {
                         auto newmc = cast(MemChunk*)(cast(void*) currmc + byteSize);
                         newmc.mc_Bytes = currmc.mc_Bytes - byteSize;
 
-                        newmc.mc_Node = TinyNode(); // Ensure, that ptr are null
+                        newmc.mc_Node = TinyNode(); // Ensure, that ptrs are null
                         this.mh_ChunkList.addNode(newmc.mc_Node, &currmc.mc_Node);
 
                         mymem = cast(void*) currmc.mc_Node.remNode;
@@ -392,9 +393,9 @@ struct MemHeader {
                 }
 
                 /* Now postprocess the memheader structure amd allocated memory. */
+
                 this.mh_Free -= byteSize; // Correct the free size.
 
-                // Now fulfill some our users additional wishes
                 if (flags & MemFlags.MEMF_CLEAR)
                     (cast(ubyte*) mymem)[0 .. alignValUp(byteSize, MEM_BLOCKEXP)] = 0;
                 else if (ALLOC_PATTERN)
@@ -453,6 +454,7 @@ struct MemHeader {
         if (byteSize && this.mh_Free >= byteSize) {
             /* Round up byteSize to next block boundary */
             byteSize = alignValUp(byteSize, MEM_BLOCKEXP);
+
             if (flags & MemFlags.MEMF_ALIGN) {
                 assert(alignment != 0, "Alignment must be > 0");
                 assert(alignment < IPTRBITS, "Alignment must be < " ~ text(IPTRBITS));
@@ -466,43 +468,36 @@ struct MemHeader {
             } else
                 location = cast(void*)(cast(size_t) location & ~MEM_BLOCKMASK);
 
-            /*********************************************************************
-            ** Now traverse the list to find a memchunk large enough for our
+            /* Now traverse the list to find a memchunk large enough for our
             ** requirements. We can allocate from the front or end of list.
             */
-            MemChunk* currmc, newmc;
+            MemChunk* currmc;
             if (flags & MemFlags.MEMF_REVERSE)
                 currmc = cast(MemChunk*)(this.mh_ChunkList.getTailPred);
             else
                 currmc = cast(MemChunk*)(this.mh_ChunkList.getHeadSucc);
 
             while (currmc.mc_Node.isNodeReal) {
-                /* Check if we can fit an aligned block at the start or end of mc */
                 if (flags & MemFlags.MEMF_ALIGN) {
+                    /* Check if we can fit an aligned block at the start or end of mc */
                     if (currmc.mc_Bytes >= byteSize) {
+                        size_t alignedAddr;
                         if (flags & MemFlags.MEMF_REVERSE) {
-                            if ((((cast(size_t) currmc + currmc.mc_Bytes - byteSize) & ~alignment) >= cast(size_t) currmc)
-                                && (((cast(size_t) currmc + currmc.mc_Bytes - byteSize) & ~alignment) + byteSize
-                                    <= cast(
-                                    size_t) currmc + currmc.mc_Bytes)
-                                )
-                                break;
+                            alignedAddr = (cast(size_t) currmc + currmc.mc_Bytes - byteSize) & ~alignment;
                         } else {
-                            if ((((cast(size_t) currmc + alignment) & ~alignment) >= cast(size_t) currmc)
-                                && (((cast(size_t) currmc + alignment) & ~alignment) + byteSize
-                                    <= cast(
-                                    size_t) currmc + currmc.mc_Bytes)
-                                )
-                                break;
+                            alignedAddr = (cast(size_t) currmc + alignment) & ~alignment;
                         }
+                        bool condLow = alignedAddr >= cast(size_t) currmc;
+                        bool condHigh = alignedAddr + byteSize <= cast(
+                            size_t) currmc + currmc.mc_Bytes;
+                        if (condLow && condHigh)
+                            break;
                     }
-                }  /*******************************************************************
-                ** absolute allocation
-                */
-                else {
-                    if ((location >= cast(void*) currmc)
-                        && (cast(uint) location + byteSize <= cast(uint) currmc + currmc.mc_Bytes)
-                        )
+                } else {
+                    /* absolute allocation - search for the MemChunk containing the requested allocation */
+                    bool matchedLower = location >= cast(void*) currmc;
+                    bool matchedUpper = location + byteSize <= cast(void*) currmc + currmc.mc_Bytes;
+                    if (matchedLower && matchedUpper)
                         break;
                 }
 
@@ -511,55 +506,47 @@ struct MemHeader {
                 else
                     currmc = cast(MemChunk*) currmc.mc_Node.getNextNode; // Ok, then get next free node
             }
-            /*********************************************************************
-            ** Here at least one mc must be found, or there is no memory chunk
-            ** large enough for our request.
-            */
+            /* Here at least one MemChunk must be found, or there is no memory chunk large enough for our request. */
             if (currmc.mc_Node.isNodeReal) {
-                //** We now precalculate the allocation address.
-
+                // We now precalculate the allocation address.
                 if (flags & MemFlags.MEMF_ALIGN) {
-                    if (flags & MemFlags.MEMF_REVERSE)
-                        mymem = cast(void*)(
-                            (cast(size_t) currmc + currmc.mc_Bytes - byteSize) & ~alignment);
-                    else
-                        mymem = cast(void*)((cast(size_t) currmc + alignment) & ~alignment);
+                    if (flags & MemFlags.MEMF_REVERSE) {
+                        size_t alignedAddrReversed = (cast(size_t) currmc + currmc.mc_Bytes - byteSize) & ~alignment;
+                        mymem = cast(void*) alignedAddrReversed;
+                    } else {
+                        size_t alignedAddrLow = ((cast(size_t) currmc + alignment) & ~alignment);
+                        mymem = cast(void*) alignedAddrLow;
+                    }
                 } else {
                     mymem = location;
                 }
 
-                size_t dsz1, dsz2; //** leftover from start and end of memchunk
-                dsz1 = cast(size_t) mymem - cast(size_t) currmc; //** new currmc size
-                newmc = cast(MemChunk*)(cast(size_t) mymem + byteSize); //** possible new memchunk
-                dsz2 = currmc.mc_Bytes - dsz1 - byteSize; //** newmc size
+                /* Calc sizes of bytes before and after the allocation */
+                auto dsz1 = mymem - cast(void*) currmc; // new currmc size (part before allocation)
+                auto newmc = cast(MemChunk*)(mymem + byteSize); // new memchunk after allocation
+                auto dsz2 = currmc.mc_Bytes - dsz1 - byteSize; // newmc size
 
-                /**********************************************************************
-                ** Ok, now setup the new values.
-                */
-                if ((cast(void*) currmc == mymem) //** Trivial case
-                    && (currmc.mc_Bytes == byteSize)) {
+                /* Ok, now setup the new free MemChunks */
+
+                /* Trivial case - the old memchunk is replaced by allocation */
+                if ((cast(void*) currmc == mymem) && (currmc.mc_Bytes == byteSize)) {
                     mymem = currmc.mc_Node.remNode;
-                } else //** Nontrival case
-                {
-                    if (dsz2) //** Is there a need for a newmc?
+                } else {
+                    if (dsz2) // Do we need a new MemChunk after the allocation
                     {
                         newmc.mc_Node = TinyNode();
                         newmc.mc_Bytes = dsz2;
                         this.mh_ChunkList.addNode(newmc.mc_Node, &currmc.mc_Node);
                     }
-
-                    if (dsz1) //** Is the memory left at start
-                        currmc.mc_Bytes = dsz1;
+                    if (dsz1) // Is there still memory left in the currmc?
+                        currmc.mc_Bytes = dsz1; // Shrink size
                     else
-                        currmc.mc_Node.remNode;
+                        currmc.mc_Node.remNode; // remove node
                 }
 
-                /********************************************************************
-                ** Now postprocess the memheader structure amd allocated memory.
-                */
-                this.mh_Free -= byteSize; // Correct the free size.
+                /* Now postprocess the memheader structure amd allocated memory. */
 
-                //** Now fulfill some our users additional wishes *******************
+                this.mh_Free -= byteSize; // Correct the free size.
 
                 if (flags & MemFlags.MEMF_CLEAR)
                     (cast(ubyte*) mymem)[0 .. alignValUp(byteSize, MEM_BLOCKEXP)] = 0;
@@ -573,6 +560,8 @@ struct MemHeader {
     }
 
     /** Allocate aligned memory (2^n)
+     *
+     * Wraps the allocateAbs() function for aligned operation.
      *
      * Params:
      *   byteSize = size to allocate
@@ -619,9 +608,9 @@ struct MemHeader {
     void deallocate(void* memoryBlock, size_t byteSize) {
         logFLine(__FUNCTION__ ~ "( %08x,%08x,%08x )", &this, memoryBlock, byteSize);
 
-        if (byteSize &&  //** There must be valid size.
+        if (byteSize &&  // There must be valid size != 0.
             this.mh_Node.ln_Type == ListNodeType.LNT_MEMORY &&
-            memoryBlock >= this.mh_Lower &&  //** Allocated block must be in range of mh
+            memoryBlock >= this.mh_Lower &&  // Allocated block must be in range of this MemHeader
             memoryBlock < this.mh_Upper) {
 
             assert(((cast(size_t) memoryBlock) & MEM_BLOCKMASK) == 0, "Block must be aligned on right boundary");
@@ -1036,6 +1025,7 @@ class Memory {
     */
     MemHandler* addMemHandler(string name, short pri, MEMHANDLERCODE usercode, void* userdata)
     in (usercode !is null, "Needs a pointer to the lowmem handler.")
+
     do {
         logFLine(__FUNCTION__ ~ "( %s, %08x,%08x,%08x )", name, pri, usercode, userdata);
 
@@ -1079,6 +1069,7 @@ class Memory {
     void remMemHandler(MemHandler* memHandler)
     in (memHandler !is null, __FUNCTION__ ~ ": Missing ptr.")
     in (memHandler.mmh_Node.ln_Type == ListNodeType.LNT_MEMHANDLER, __FUNCTION__ ~ ": Wrong type.")
+
     do {
         logFLine(__FUNCTION__ ~ "( %08x )\n", memHandler);
 
@@ -1114,6 +1105,7 @@ class Memory {
     */
     STATUS callMemHandlers(size_t byteSize, uint alignment, uint flags)
     in (byteSize, "byteSize must be > 0")
+
     do {
         logFLine(__FUNCTION__ ~ "( %08x,%08x )\n", byteSize, flags);
 
@@ -1306,6 +1298,7 @@ class Memory {
     */
     void* allocMem(size_t byteSize, MemFlags requirements)
     in (byteSize, "Can't allocate a 0 byte quantity")
+
     do {
         STATUS stat = MEM_ALL_DONE;
         void* mptr = null;
@@ -1388,6 +1381,7 @@ class Memory {
     void* allocAbs(size_t byteSize, void* location, MemFlags flags)
     in (byteSize, "Mustbe >0 bytes")
     in (!(flags & MemFlags.MEMF_ALIGN), "ALIGN flag is set?")
+
     do {
         MemHeader* mh;
         void* mptr = null;
@@ -1455,6 +1449,7 @@ class Memory {
     */
     void* allocAlign(size_t byteSize, uint alignment, MemFlags flags)
     in (byteSize, __FUNCTION__ ~ ": byteSize must be >0")
+
     do {
         logFLine(__FUNCTION__ ~ "( %08x,%08x,%08x )", byteSize, alignment, flags);
 
@@ -1523,6 +1518,7 @@ class Memory {
     void freeMem(void* memoryBlock, size_t byteSize)
     in (memoryBlock !is null, __FUNCTION__ ~ ": Need ptr to blk.")
     in (byteSize, __FUNCTION__ ~ ": size must be >0")
+
     do {
         logFLine(__FUNCTION__ ~ "( %08x,%08x )", memoryBlock, byteSize);
 
@@ -1842,6 +1838,7 @@ class Memory {
     MemEntries* allocEntry(MemEntries* entry)
     in (entry, __FUNCTION__ ~ ": Need ptr.")
     in (entry.ml_Node.ln_Type == ListNodeType.LNT_MEMLIST, __FUNCTION__ ~ ": Wrong type.")
+
     do {
         MemEntries* rc = null;
         logFLine(__FUNCTION__ ~ "( %08x )", entry);
@@ -1881,6 +1878,7 @@ class Memory {
     void freeEntry(MemEntries* entry)
     in (entry, __FUNCTION__ ~ ": Need ptr.")
     in (entry.ml_Node.ln_Type == ListNodeType.LNT_MEMLIST, __FUNCTION__ ~ ": Wrong type.")
+
     do {
         int i;
         logFLine(__FUNCTION__ ~ "( %08x )", entry);
@@ -1965,6 +1963,7 @@ class Memory {
     in (memList, __FUNCTION__ ~ ": Need ptr.")
     in (memList.ml_Node.ln_Type == ListNodeType.LNT_MEMLIST, __FUNCTION__ ~ ": Wrong type.")
     in (memList.ml_NumEntries >= 1, __FUNCTION__ ~ ": At least one entry.")
+
     do {
         size_t freesize = calculateMemListSize(memList.ml_NumEntries);
         if (freesize > 0) {
