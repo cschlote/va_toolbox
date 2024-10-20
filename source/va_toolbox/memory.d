@@ -178,7 +178,7 @@ enum MEMHF_RECYCLE = (1L << 0); // 0==First time, 1==recycle
 enum SYSMEMHANDLERPRI = (-0x1000); // The system.lib internal handler
 
 /*************************************************************************
-** Low Memory handler STATUS return values.
+** Low Memory handler int return values.
 **
 **    Return MEM_DID_NOTHING, if you couldn't free some memory.
 **    Return MEM_TRY_AGAIN, you freed some memory, but can free more.
@@ -187,7 +187,6 @@ enum SYSMEMHANDLERPRI = (-0x1000); // The system.lib internal handler
 enum MEM_DID_NOTHING = (0); // Nothing we could do...
 enum MEM_ALL_DONE = (-1); // We did all we could do
 enum MEM_TRY_AGAIN = (1); // We did some, try the allocation again
-alias STATUS = int;
 
 import core.sync.mutex;
 
@@ -376,8 +375,7 @@ struct MemHeader {
                         currmc.mc_Bytes -= byteSize; // Shorten MemChunk
                         mymem = cast(MemChunk*)(cast(void*) currmc + currmc.mc_Bytes);
 
-                    } else
-                    {
+                    } else {
                         /* cut some space from the start of a mem chunk. We must
                         ** create a new node at currnode + byteSize, and remove the
                         ** rest of the remaining currmc.
@@ -613,7 +611,7 @@ struct MemHeader {
             memoryBlock >= this.mh_Lower &&  // Allocated block must be in range of this MemHeader
             memoryBlock < this.mh_Upper) {
 
-            assert(((cast(size_t) memoryBlock) & MEM_BLOCKMASK) == 0, "Block must be aligned on right boundary");
+            assert(((cast(size_t) memoryBlock) & MEM_BLOCKMASK) == 0, "Block must be aligned on MEM_BLOCKMASK boundary");
 
             /* Align ptr/size to lower/upper boundary of MEMBLOCKMASK. As memory
             ** of a mh starts a MEM_BLOCKMASK boundary and Allocate will always
@@ -622,15 +620,14 @@ struct MemHeader {
             */
             //** Round down memoryBlock and add difference to byteSize
 
-            size_t tmp = cast(size_t) memoryBlock;
+            size_t tmpAddr = cast(size_t) memoryBlock;
             memoryBlock = cast(MemChunk*) alignValDown(memoryBlock, MEM_BLOCKEXP);
-            byteSize += (cast(size_t) memoryBlock - tmp);
+            byteSize += (cast(size_t) memoryBlock - tmpAddr);
 
             //** Now round byteSize to next boundary
             byteSize = alignValUp(byteSize, MEM_BLOCKEXP);
 
-            /*********************************************************************
-            ** Now trace the MemChunk list. We must cover special cases for the
+            /* Now trace the MemChunk list. We must cover special cases for the
             ** list ends. They stand for mh_Lower/Upper.
             */
             MemChunk* prevmc = cast(MemChunk*) this.mh_Lower; // This is the address of the first possible location
@@ -645,10 +642,9 @@ struct MemHeader {
                 nextmc = cast(MemChunk*) nextmc.mc_Node.getNextNode;
             }
             if (nextmc.mc_Node.isNodeTail)
-                nextmc = cast(MemChunk*) this.mh_Upper; // Fake address of a fictious tail node
+                nextmc = cast(MemChunk*) this.mh_Upper; // Fake address of a virtual(!) tail node
 
-            /*********************************************************************
-            ** Ok, now prevmc is the chunk before our mem, and nextmc is behind
+            /* Ok, now prevmc is the chunk before our mem, and nextmc is behind
             ** it. We must care about the situation, that prevmc or nextmc are
             ** equal to mh_Lower and mh_Upper.
             **
@@ -660,34 +656,31 @@ struct MemHeader {
             ** Note: prevmc is mh_Lower, also if a real memchunk exists. So we must
             ** check, if it's the fake value or a real one.
             */
-            size_t psz, qsz;
+            bool isLowerBoundary = (cast(void*) prevmc == this.mh_Lower) &&
+                (cast(void*) this.mh_ChunkList.getHeadSucc != this.mh_Lower);
+            auto preFreeBlockSize = isLowerBoundary ? size_t(0) : prevmc.mc_Bytes;
+            bool isUpperBoundary = (cast(void*) nextmc == this.mh_Upper);
+            auto postFreeBlockSize = isUpperBoundary ? size_t(0) : nextmc.mc_Bytes;
 
-            psz = (cast(void*) prevmc == this.mh_Lower)
-                && (cast(void*) this.mh_ChunkList.getHeadSucc != this.mh_Lower) ? size_t(0) : (
-                    cast(MemChunk*) prevmc).mc_Bytes;
-            qsz = (cast(void*) nextmc == this.mh_Upper) ? size_t(0) : (cast(MemChunk*) nextmc)
-                .mc_Bytes;
-
-            assert((cast(size_t) memoryBlock + byteSize) >= (cast(size_t) prevmc + psz), "Inside first chunk.");
+            assert(memoryBlock + byteSize >= cast(void*) prevmc + preFreeBlockSize, "Inside first chunk.");
 
             // Check, that the addr range to free is between two MemChunks
-            assert(cast(size_t) memoryBlock >= (cast(size_t) prevmc + psz), "Not behind first MemChunk");
-            assert(cast(size_t) memoryBlock + byteSize <= cast(size_t) nextmc, "Overlap into next MemChunk!");
+            assert(memoryBlock >= (cast(void*) prevmc + preFreeBlockSize), "Not behind first MemChunk");
+            assert(memoryBlock + byteSize <= cast(void*) nextmc, "Overlap into next MemChunk!");
 
-            /********************************************************************
-            ** Now we know, that we do not overlap other memchunks. Now nuke
-            ** out memchunk by adding it as a new memchunk to the free list.
-            ** If psz == 0 then prevmc is ListHead. We can pass null to AddNode()
-            ** it will use AddNodeHead() then.
+            /* Now we know that we do not overlap other memchunks. Now 'free'
+            ** memchunk by adding it as a new memchunk to the free list.
+            ** If preFreeBlockSize == 0 then prevmc is ListHead. We can pass null to addNode()
+            ** it will use addNodeHead() then.
             */
-            MemChunk* mc = cast(MemChunk*) memoryBlock;
-            mc.mc_Bytes = byteSize;
+            MemChunk* currmc = cast(MemChunk*) memoryBlock;
+            currmc.mc_Bytes = byteSize;
 
-            mc.mc_Node = TinyNode();
-            this.mh_ChunkList.addNode(mc.mc_Node, psz ? &prevmc.mc_Node : null); // Put new free chunk to right place
+            currmc.mc_Node = TinyNode(); // Ensure, that the pointers are null for assert()
+            // Put new free chunk to free list again
+            this.mh_ChunkList.addNode(currmc.mc_Node, preFreeBlockSize ? &prevmc.mc_Node : null);
 
-            /********************************************************************
-            ** Now we successfully freed our memory. Now the happy merging job
+            /* Now we successfully freed our memory. Now the merging of adjected MemChunks
             ** starts. Now there could be following situations:
             **
             ** a ) check if we follow another memchunk. Merge them. Care about
@@ -695,27 +688,25 @@ struct MemHeader {
             ** b ) check if we preced another memchunk. Merge them. Care about
             **	   listtail.
             */
-            //******** Do we have preceders ???
-
-            if (psz) // Are we not at ListHead ?
+            //******** Is there any managed memory before the deallocation?
+            if (preFreeBlockSize) // is 0 when on head node...
             {
-                if (cast(size_t) mc == (cast(size_t) prevmc + psz)) // Possible merge with prev mc
+                if (cast(size_t) currmc == cast(size_t) prevmc + preFreeBlockSize) // Possible merge with prev mc
                 {
-                    prevmc.mc_Bytes += mc.mc_Bytes; // Extend previous memchunk
+                    prevmc.mc_Bytes += currmc.mc_Bytes; // Extend previous memchunk
+                    currmc.mc_Node.remNode; // Remove old mc:
 
-                    mc.mc_Node.remNode; // Remove old mc:
-                    mc = cast(MemChunk*) prevmc; // Make this our actual mc.
+                    currmc = cast(MemChunk*) prevmc; // Make this our actual MemCHunk
                 }
             }
 
             //******* Now check, if we are followed directly by another memchunk.
-
-            if (qsz) // Are there followers ?
+            if (postFreeBlockSize) // is 0 when at tail node
             {
-                if ((cast(size_t) mc) + mc.mc_Bytes == cast(size_t) nextmc) // next free directly follows ?
+                if ((cast(size_t) currmc) + currmc.mc_Bytes == cast(size_t) nextmc) // next free directly follows ?
                 {
-                    mc.mc_Bytes += nextmc.mc_Bytes; // Extend node and
-                    nextmc.mc_Node.remNode; // Remove next free chunk-
+                    currmc.mc_Bytes += nextmc.mc_Bytes; // Extend node and
+                    nextmc.mc_Node.remNode; // Remove the new merged chunk
                 }
             }
 
@@ -1103,13 +1094,13 @@ class Memory {
     * See:
     *	AddMemHandler(), RemMemHandler()
     */
-    STATUS callMemHandlers(size_t byteSize, uint alignment, uint flags)
+    int callMemHandlers(size_t byteSize, uint alignment, uint flags)
     in (byteSize, "byteSize must be > 0")
 
     do {
         logFLine(__FUNCTION__ ~ "( %08x,%08x )\n", byteSize, flags);
 
-        STATUS rc = MEM_ALL_DONE;
+        int rc = MEM_ALL_DONE;
         do {
             MemHandler* mmh = null;
 
@@ -1192,7 +1183,7 @@ class Memory {
     * See:
     *	AddMemHandler(), RemMemHandler(), CallMemHandlers()
     */
-    static STATUS systemMemHandler(Memory memory, MemHandler* mmh, MemHandlerData* mhd) {
+    static int systemMemHandler(Memory memory, MemHandler* mmh, MemHandlerData* mhd) {
         logFLine("SysMemHandler called(%s, %x) = MEM_DID_NOTHING");
 
         //FIXME: Implement SysMemHandler.
@@ -1300,7 +1291,7 @@ class Memory {
     in (byteSize, "Can't allocate a 0 byte quantity")
 
     do {
-        STATUS stat = MEM_ALL_DONE;
+        int stat = MEM_ALL_DONE;
         void* mptr = null;
         logFLine(__FUNCTION__ ~ "( %08x,%08x )", byteSize, requirements);
 
@@ -1461,7 +1452,7 @@ class Memory {
 
         //**-- Traverse MemHeaders of right type, and try to get memory.
         void* mptr = null;
-        STATUS stat = MEM_ALL_DONE;
+        int stat = MEM_ALL_DONE;
         do {
             auto mh = cast(MemHeader*) this.sys_MemHeaders.getHeadSucc;
             while (!mh.mh_Node.isNodeTail) {
@@ -2104,7 +2095,7 @@ unittest {
 
 int myHandlerReturn = MEM_TRY_AGAIN;
 
-STATUS myMemHandler(Memory memory, MemHandler* mmh, MemHandlerData* mhd) {
+int myMemHandler(Memory memory, MemHandler* mmh, MemHandlerData* mhd) {
     logFLine("SysMemHandler called(%s, %x) = MEM_DID_NOTHING");
     auto rc = myHandlerReturn;
     myHandlerReturn = MEM_DID_NOTHING;
