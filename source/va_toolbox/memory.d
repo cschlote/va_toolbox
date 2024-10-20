@@ -12,6 +12,13 @@
  */
 module va_toolbox.memory;
 
+import core.exception;
+import core.stdc.string;
+import core.sync.mutex;
+import std.bitmanip;
+import std.conv;
+import std.exception;
+
 import va_toolbox.linked_list;
 
 bool DEBUG = false;
@@ -34,19 +41,9 @@ private void logFLine(T...)(T args) {
     }
 }
 
-enum IPTRBITS = (void*).sizeof * 8;
-
-import std.conv;
-import core.stdc.string;
-import std.bitmanip; //  toBigEndian
-import std.exception;
-import core.exception;
-
-/****************************************************************************
-** This are the COMPILE flags for basic debugging.
-*/
-enum bool DEALLOC_PATTERN = true; // Enable block fills
-enum bool ALLOC_PATTERN = true; // Enable block fills
+/* These are the COMPILE flags for basic debugging. */
+enum bool DEALLOC_PATTERN = true; // Enable block fills for free memory
+enum bool ALLOC_PATTERN = true; // Enable block fills for new allocated memory
 enum bool BOUNDS_CHECKING = true; // Enable boundary checks
 
 const ulong FILLPATTERN_ALLOC = 0xaaaaaaaaaaaaaaaa; // After block is allocated
@@ -176,8 +173,7 @@ enum MEMHF_RECYCLE = (1L << 0); // 0==First time, 1==recycle
 
 enum SYSMEMHANDLERPRI = (-0x1000); // The system.lib internal handler
 
-/*************************************************************************
-** Low Memory handler int return values.
+/** Low Memory handler int return values.
 **
 **    Return MEM_DID_NOTHING, if you couldn't free some memory.
 **    Return MEM_TRY_AGAIN, you freed some memory, but can free more.
@@ -187,9 +183,13 @@ enum MEM_DID_NOTHING = (0); // Nothing we could do...
 enum MEM_ALL_DONE = (-1); // We did all we could do
 enum MEM_TRY_AGAIN = (1); // We did some, try the allocation again
 
-import core.sync.mutex;
 
-/** MemHeader */
+/** MemHeader
+ *
+ *  A MemHeader is placed at the start of a managed memory space. The
+ * memory after the header is managed with a list of free memory chunks.
+ * When all memory is allocated the list is empty.
+ */
 struct MemHeader {
     ListNode mh_Node; // Allows to type, priorize and name the memory
     MemFlags mh_Attributes; // characteristics of this memory
@@ -425,7 +425,7 @@ struct MemHeader {
     *	byteSize = requested byte size. The size is rounded up to the
     *               next MEM_BLOCKSIZE boundary.
     *	location = Location of absolute chunk to allocate or alignment value
-    *	            for aligned allocations ( 0 < x < IPTRBITS ).
+    *	            for aligned allocations ( 0 < x < (void*).sizeof * 8 ).
     *				E.g. 4k alignment = 2^12 . x = 12
     *	flags = flags to use for allocation
     *
@@ -453,6 +453,7 @@ struct MemHeader {
             byteSize = alignValUp(byteSize, MEM_BLOCKEXP);
 
             if (flags & MemFlags.Align) {
+                enum IPTRBITS = (void*).sizeof * 8;
                 assert(alignment != 0, "Alignment must be > 0");
                 assert(alignment < IPTRBITS, "Alignment must be < " ~ text(IPTRBITS));
 
@@ -709,10 +710,13 @@ struct MemHeader {
                 }
             }
 
-            /*********************************************************************
-            ** Correct free memory value in MemHeader
-            */
+            /* Correct free memory value in MemHeader */
             this.mh_Free += byteSize;
+
+            /* If enabled, fill deallocated memory after the MemChunk header */
+            if (DEALLOC_PATTERN) {
+                memset(currmc + 1, cast(ubyte) FILLPATTERN_FREE, byteSize - MemChunk.sizeof);
+            }
         }
     }
 }
