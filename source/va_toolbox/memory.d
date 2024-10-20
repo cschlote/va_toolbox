@@ -131,39 +131,38 @@ private void checkMungwall(ref void* mptr, ref size_t byteSize) {
 
 /** Memory Requirement Types (see AllocMem() )*/
 enum MemFlags : uint {
-    MEMF_ANY = (0), // Any type of memory will do
-    MEMF_PUBLIC = (1L << 0), // Nonswapable public memory
-    MEMF_FAST = (1L << 1), // This is extrafast memory
-    MEMF_VIDEO = (1L << 2), // Some gfx system allow this
-    MEMF_VIRTUAL = (1L << 3), // If possible use swapable memory
+    Any = (0), // Any type of memory will do
+    Public = (1UL << 0), // Nonswapable public memory
+    Fast = (1UL << 1), // This is extrafast memory
+    Video = (1UL << 2), // Some gfx system allow this
+    Virtual = (1UL << 3), // If possible use swapable memory
 
-    MEMF_PERMANENT = (1L << 15), // Memory that does not go away at RESET
+    Permanent = (1UL << 15), // Memory that does not go away at RESET
     // (Is available at Main() with old content)
 
-    MEMF_MASKFLAGS = 0x0000ffff, // The lower 16 bits are memory attributes
+    AttributeMask = 0x0000ffff, // The lower 16 bits are memory attributes
 
     // The following flags are used for special allocatior operation. Use them as you need.
+    Clear = (1UL << 16), // allocMem: null out area before return
+    Largest = (1UL << 17), // availMem: return the largest chunk size
+    Reverse = (1UL << 18), // allocMem: allocate from the top down
+    Total = (1UL << 19), // availMem: return total size of memory
+    Align = (1UL << 20), // allocateAbs: use alignment mask instead of location
 
-    MEMF_CLEAR = (1L << 16), // AllocMem: null out area before return
-    MEMF_LARGEST = (1L << 17), // AvailMem: return the largest chunk size
-    MEMF_REVERSE = (1L << 18), // AllocMem: allocate from the top down
-    MEMF_TOTAL = (1L << 19), // AvailMem: return total size of memory
-    MEMF_ALIGN = (1L << 20), // allocateAbs: use alignment mask instead of location
-
-    MEMF_NO_EXPUNGE = (1L << 31) // AllocMem: Do not cause expunge on failure
-
+    No_Expunge = (1UL << 31) // allocMem: Do not cause expunge on failure
 }
 
-alias MEMHANDLERCODE = int function(Memory m, MemHandler* mh, MemHandlerData* data);
+/** The callback function to be called in low memory situations. */
+alias MemHandlerCallBack = int function(Memory m, MemHandler* mh, MemHandlerData* data);
 
 /** MemHandlerData
-    * Note:  This structures are *READ ONLY*
-    */
+* Note:  This structures are *READ ONLY*
+*/
 struct MemHandler {
     ListNode mmh_Node;
     uint mmh_Flags; // Execution modes
     void* mmh_UserData; // handler data segment
-    MEMHANDLERCODE mmh_UserCode; // handler code
+    MemHandlerCallBack mmh_UserCode; // handler code
 }
 
 struct MemHandlerData {
@@ -335,7 +334,7 @@ struct MemHeader {
             ** allocation. We can allocate from the front or end of list.
             */
             MemChunk* currmc;
-            if (flags & MemFlags.MEMF_REVERSE)
+            if (flags & MemFlags.Reverse)
                 currmc = cast(MemChunk*)(this.mh_ChunkList.getTailPred);
             else
                 currmc = cast(MemChunk*)(this.mh_ChunkList.getHeadSucc);
@@ -344,7 +343,7 @@ struct MemHeader {
                 if (currmc.mc_Bytes >= byteSize) // Stop on first node with enough space
                     break;
 
-                if (flags & MemFlags.MEMF_REVERSE)
+                if (flags & MemFlags.Reverse)
                     currmc = cast(MemChunk*) currmc.mc_Node.getPrevNode; // Ok, then get previous free node
                 else
                     currmc = cast(MemChunk*) currmc.mc_Node.getNextNode; // Ok, then get next free node
@@ -369,7 +368,7 @@ struct MemHeader {
                 {
                     mymem = cast(void*) currmc.mc_Node.remNode;
                 } else {
-                    if (flags & MemFlags.MEMF_REVERSE) //** Allocation mode reverse ?
+                    if (flags & MemFlags.Reverse) //** Allocation mode reverse ?
                     {
                         /* cut some space from the end of the current free chunk */
                         currmc.mc_Bytes -= byteSize; // Shorten MemChunk
@@ -394,7 +393,7 @@ struct MemHeader {
 
                 this.mh_Free -= byteSize; // Correct the free size.
 
-                if (flags & MemFlags.MEMF_CLEAR)
+                if (flags & MemFlags.Clear)
                     (cast(ubyte*) mymem)[0 .. alignValUp(byteSize, MEM_BLOCKEXP)] = 0;
                 else if (ALLOC_PATTERN)
                     (cast(ulong*) mymem)[0 .. alignValUp(byteSize, MEM_BLOCKEXP) / ulong.sizeof] = FILLPATTERN_ALLOC;
@@ -453,7 +452,7 @@ struct MemHeader {
             /* Round up byteSize to next block boundary */
             byteSize = alignValUp(byteSize, MEM_BLOCKEXP);
 
-            if (flags & MemFlags.MEMF_ALIGN) {
+            if (flags & MemFlags.Align) {
                 assert(alignment != 0, "Alignment must be > 0");
                 assert(alignment < IPTRBITS, "Alignment must be < " ~ text(IPTRBITS));
 
@@ -470,17 +469,17 @@ struct MemHeader {
             ** requirements. We can allocate from the front or end of list.
             */
             MemChunk* currmc;
-            if (flags & MemFlags.MEMF_REVERSE)
+            if (flags & MemFlags.Reverse)
                 currmc = cast(MemChunk*)(this.mh_ChunkList.getTailPred);
             else
                 currmc = cast(MemChunk*)(this.mh_ChunkList.getHeadSucc);
 
             while (currmc.mc_Node.isNodeReal) {
-                if (flags & MemFlags.MEMF_ALIGN) {
+                if (flags & MemFlags.Align) {
                     /* Check if we can fit an aligned block at the start or end of mc */
                     if (currmc.mc_Bytes >= byteSize) {
                         size_t alignedAddr;
-                        if (flags & MemFlags.MEMF_REVERSE) {
+                        if (flags & MemFlags.Reverse) {
                             alignedAddr = (cast(size_t) currmc + currmc.mc_Bytes - byteSize) & ~alignment;
                         } else {
                             alignedAddr = (cast(size_t) currmc + alignment) & ~alignment;
@@ -499,7 +498,7 @@ struct MemHeader {
                         break;
                 }
 
-                if (flags & MemFlags.MEMF_REVERSE)
+                if (flags & MemFlags.Reverse)
                     currmc = cast(MemChunk*) currmc.mc_Node.getPrevNode; // Ok, then get previos free node
                 else
                     currmc = cast(MemChunk*) currmc.mc_Node.getNextNode; // Ok, then get next free node
@@ -507,8 +506,8 @@ struct MemHeader {
             /* Here at least one MemChunk must be found, or there is no memory chunk large enough for our request. */
             if (currmc.mc_Node.isNodeReal) {
                 // We now precalculate the allocation address.
-                if (flags & MemFlags.MEMF_ALIGN) {
-                    if (flags & MemFlags.MEMF_REVERSE) {
+                if (flags & MemFlags.Align) {
+                    if (flags & MemFlags.Reverse) {
                         size_t alignedAddrReversed = (cast(size_t) currmc + currmc.mc_Bytes - byteSize) & ~alignment;
                         mymem = cast(void*) alignedAddrReversed;
                     } else {
@@ -546,7 +545,7 @@ struct MemHeader {
 
                 this.mh_Free -= byteSize; // Correct the free size.
 
-                if (flags & MemFlags.MEMF_CLEAR)
+                if (flags & MemFlags.Clear)
                     (cast(ubyte*) mymem)[0 .. alignValUp(byteSize, MEM_BLOCKEXP)] = 0;
                 else if (ALLOC_PATTERN)
                     (cast(ulong*) mymem)[0 .. alignValUp(byteSize, MEM_BLOCKEXP) / ulong.sizeof] = FILLPATTERN_ALLOC;
@@ -569,7 +568,7 @@ struct MemHeader {
      *   Adress of allocated memory or null
      */
     void* allocateAligned(size_t byteSize, int alignment, MemFlags flags) {
-        flags |= MemFlags.MEMF_ALIGN;
+        flags |= MemFlags.Align;
         return allocateAbs(byteSize, cast(void*) alignment, flags);
     }
 
@@ -722,7 +721,7 @@ struct MemHeader {
 unittest {
     __gshared align(256) ubyte[256] memory;
     auto mh = MemHeader.initMemHeader(memory.length, MemFlags(), 0, memory.ptr, "test memory");
-    assert(mh.mh_Attributes == MemFlags.MEMF_ANY);
+    assert(mh.mh_Attributes == MemFlags.Any);
     assert(mh.mh_Free == 0x80);
 
     auto maxSize = mh.mh_Free;
@@ -768,19 +767,19 @@ unittest {
         assert(maxSize == mh.mh_Free);
     }
 
-    runTestSetAllocate(MemFlags.MEMF_ANY);
-    runTestSetAllocate(MemFlags.MEMF_REVERSE);
+    runTestSetAllocate(MemFlags.Any);
+    runTestSetAllocate(MemFlags.Reverse);
 
-    runTestSetAllocate(MemFlags.MEMF_ANY | MemFlags.MEMF_CLEAR);
-    runTestSetAllocate(MemFlags.MEMF_REVERSE | MemFlags.MEMF_CLEAR);
+    runTestSetAllocate(MemFlags.Any | MemFlags.Clear);
+    runTestSetAllocate(MemFlags.Reverse | MemFlags.Clear);
 
     void* abTestAddr = mh.mh_Lower + MemHeader.MEM_BLOCKSIZE;
 
-    auto memabs1 = mh.allocateAbs(1, abTestAddr, MemFlags.MEMF_ANY);
+    auto memabs1 = mh.allocateAbs(1, abTestAddr, MemFlags.Any);
     mh.deallocate(memabs1, 1);
     assert(maxSize == mh.mh_Free);
 
-    auto memabs2 = mh.allocateAbs(1 + MemHeader.MEM_BLOCKSIZE, abTestAddr, MemFlags.MEMF_ANY);
+    auto memabs2 = mh.allocateAbs(1 + MemHeader.MEM_BLOCKSIZE, abTestAddr, MemFlags.Any);
     mh.deallocate(memabs2, 1 + MemHeader.MEM_BLOCKSIZE);
     assert(maxSize == mh.mh_Free);
 
@@ -794,11 +793,11 @@ unittest {
         assert(maxSize == mh.mh_Free);
     }
 
-    runTestSetAllocAligned(MemFlags.MEMF_ALIGN);
-    runTestSetAllocAligned(MemFlags.MEMF_ALIGN | MemFlags.MEMF_REVERSE);
+    runTestSetAllocAligned(MemFlags.Align);
+    runTestSetAllocAligned(MemFlags.Align | MemFlags.Reverse);
 
-    runTestSetAllocAligned(MemFlags.MEMF_ALIGN | MemFlags.MEMF_CLEAR);
-    runTestSetAllocAligned(MemFlags.MEMF_ALIGN | MemFlags.MEMF_REVERSE | MemFlags.MEMF_CLEAR);
+    runTestSetAllocAligned(MemFlags.Align | MemFlags.Clear);
+    runTestSetAllocAligned(MemFlags.Align | MemFlags.Reverse | MemFlags.Clear);
 }
 
 @("MemHeader: Test Random Alloc Any/Reverse/Clear")
@@ -830,7 +829,7 @@ unittest {
         while (mh.mh_Free >= (1 * mh.mh_Total / 4)) // fill up to 25%
         {
             auto sz = getRSz();
-            MemFlags flags = sz & 1 ? MemFlags.MEMF_REVERSE : MemFlags.MEMF_ANY;
+            MemFlags flags = sz & 1 ? MemFlags.Reverse : MemFlags.Any;
             auto mc = makeNode(sz, flags);
             if (mc)
                 mc.mc_Node.addNode(th);
@@ -883,7 +882,7 @@ unittest {
         while (mh.mh_Free >= (1 * mh.mh_Total / 4)) // fill up to 25%
         {
             auto sz = getRSz();
-            MemFlags flags = sz & 1 ? MemFlags.MEMF_REVERSE : MemFlags.MEMF_ANY;
+            MemFlags flags = sz & 1 ? MemFlags.Reverse : MemFlags.Any;
             auto mc = makeNode(sz, flags);
             if (mc)
                 mc.mc_Node.addNode(th);
@@ -1014,7 +1013,7 @@ class Memory {
     * See:
     *	RemMemHandler
     */
-    MemHandler* addMemHandler(string name, short pri, MEMHANDLERCODE usercode, void* userdata)
+    MemHandler* addMemHandler(string name, short pri, MemHandlerCallBack usercode, void* userdata)
     in (usercode !is null, "Needs a pointer to the lowmem handler.")
 
     do {
@@ -1022,7 +1021,7 @@ class Memory {
 
         auto memHandler =
             cast(MemHandler*)
-            allocMem(MemHandler.sizeof, MemFlags.MEMF_PUBLIC | MemFlags.MEMF_CLEAR);
+            allocMem(MemHandler.sizeof, MemFlags.Public | MemFlags.Clear);
 
         if (memHandler) {
             memHandler.mmh_Node = ListNode(null, null, ListNodeType.LNT_MEMHANDLER, pri, name);
@@ -1253,7 +1252,7 @@ class Memory {
     *				will be found first.  However, the
     *				memory will be allocated from the highest
     *				address available in the pool.
-    *		MemFlags.MEMF_NO_EXPUNGE	This will prevent an expunge to happen on
+    *		MemFlags.No_Expunge	This will prevent an expunge to happen on
     *				a failed memory allocation.  If a memory allocation
     *				with this flag set fails, the allocator will not cause
     *				any expunge operations.  (See AddMemHandler())
@@ -1307,8 +1306,9 @@ class Memory {
         do {
             auto mh = cast(MemHeader*) sys_MemHeaders.getHeadSucc();
             while (!mh.mh_Node.isNodeTail) {
-                if (((mh.mh_Attributes & requirements) & MemFlags.MEMF_MASKFLAGS) == (
-                        requirements & MemFlags.MEMF_MASKFLAGS)) {
+                auto hasAttrs = ((mh.mh_Attributes & requirements) & MemFlags.AttributeMask);
+                auto reqAttrs = (requirements & MemFlags.AttributeMask);
+                if (hasAttrs == reqAttrs) {
                     if (mh.mh_Free >= byteSize) {
                         mptr = mh.allocate(byteSize, requirements);
                         if (mptr)
@@ -1319,7 +1319,7 @@ class Memory {
             }
             //**-- Try to free some memory and retry, if we got some memory back.
 
-            if ((mptr == null) && !(requirements & MemFlags.MEMF_NO_EXPUNGE))
+            if ((mptr == null) && !(requirements & MemFlags.No_Expunge))
                 stat = callMemHandlers(byteSize, 0, requirements);
         }
         while (((!mptr) && (stat != MEM_ALL_DONE)));
@@ -1371,7 +1371,7 @@ class Memory {
     */
     void* allocAbs(size_t byteSize, void* location, MemFlags flags)
     in (byteSize, "Mustbe >0 bytes")
-    in (!(flags & MemFlags.MEMF_ALIGN), "ALIGN flag is set?")
+    in (!(flags & MemFlags.Align), "ALIGN flag is set?")
 
     do {
         MemHeader* mh;
@@ -1456,11 +1456,11 @@ class Memory {
         do {
             auto mh = cast(MemHeader*) this.sys_MemHeaders.getHeadSucc;
             while (!mh.mh_Node.isNodeTail) {
-                if (((mh.mh_Attributes & flags) & MemFlags.MEMF_MASKFLAGS)
-                    == (
-                        flags & MemFlags.MEMF_MASKFLAGS)) {
+                auto hasAttrs = (mh.mh_Attributes & flags) & MemFlags.AttributeMask;
+                auto reqAttrs = (flags & MemFlags.AttributeMask);
+                if (hasAttrs == reqAttrs) {
                     if (mh.mh_Free >= byteSize) {
-                        mptr = mh.allocateAligned(byteSize, alignment, MemFlags.MEMF_ALIGN | flags);
+                        mptr = mh.allocateAligned(byteSize, alignment, MemFlags.Align | flags);
                         if (mptr)
                             break;
                     }
@@ -1468,7 +1468,7 @@ class Memory {
                 mh = cast(MemHeader*) mh.mh_Node.getNextNode;
             }
             //**-- Try to free some memory and retry, if we got some memory back.
-            if ((mptr == null) && !(flags & MemFlags.MEMF_NO_EXPUNGE))
+            if ((mptr == null) && !(flags & MemFlags.No_Expunge))
                 stat = callMemHandlers(byteSize, alignment, flags);
 
         }
@@ -1585,7 +1585,7 @@ class Memory {
     *				will be found first.  However, the
     *				memory will be allocated from the highest
     *				address available in the pool.
-    *		MemFlags.MEMF_NO_EXPUNGE	This will prevent an expunge to happen on
+    *		MemFlags.No_Expunge	This will prevent an expunge to happen on
     *				a failed memory allocation.  If a memory allocation
     *				with this flag set fails, the allocator will not cause
     *				any expunge operations.  (See AddMemHandler())
@@ -1682,11 +1682,10 @@ class Memory {
 
         obtainSemaphore(this.sys_MemHeadersSema, false);
         while (!mh.mh_Node.isNodeTail) {
-            bool matchedAttrs =
-                ((mh.mh_Attributes & requirements) & MemFlags.MEMF_MASKFLAGS) ==
-                (requirements & MemFlags.MEMF_MASKFLAGS);
-            if (matchedAttrs) {
-                if (requirements & MemFlags.MEMF_LARGEST) {
+            auto hasAttrs = (mh.mh_Attributes & requirements) & MemFlags.AttributeMask;
+            auto reqAttrs = (requirements & MemFlags.AttributeMask);
+            if (hasAttrs == reqAttrs) {
+                if (requirements & MemFlags.Largest) {
                     mc = cast(MemHeader.MemChunk*) mh.mh_ChunkList.getHeadSucc;
                     size_t total = 0;
                     while (!mc.mc_Node.isNodeTail) {
@@ -1704,7 +1703,7 @@ class Memory {
                     }
                     assert(total == mh.mh_Free, "SEN_MemInsane");
                 }  //
-                else if (requirements & MemFlags.MEMF_TOTAL) {
+                else if (requirements & MemFlags.Total) {
                     rc += cast(size_t) mh.mh_Total;
                 }  //
                 else
@@ -1750,7 +1749,7 @@ class Memory {
     *	AllocMem()
     */
     MemFlags typeOfMem(void* address) {
-        MemFlags rc = MemFlags.MEMF_ANY;
+        MemFlags rc = MemFlags.Any;
         logF(__FUNCTION__ ~ "( %08x ) = ", address);
 
         obtainSemaphore(this.sys_MemHeadersSema, false);
@@ -1924,7 +1923,7 @@ class Memory {
         MemEntries* ml = null;
         size_t size = calculateMemListSize(entries);
         if (size > 0) {
-            ml = cast(MemEntries*) allocMem(size, MemFlags.MEMF_PUBLIC | MemFlags.MEMF_CLEAR);
+            ml = cast(MemEntries*) allocMem(size, MemFlags.Public | MemFlags.Clear);
             if (ml) {
                 ml.ml_Node.ln_Type = ListNodeType.LNT_MEMLIST;
                 ml.ml_NumEntries = entries;
@@ -1976,47 +1975,47 @@ unittest {
     const size_t testSize = 1024 * 1024;
 
     __gshared align(1024) ubyte[testSize] memory;
-    auto mh = mem.addMemHeader(testSize, MemFlags().MEMF_PUBLIC, short(0), memory.ptr, "PublicMemory");
+    auto mh = mem.addMemHeader(testSize, MemFlags.Public, short(0), memory.ptr, "PublicMemory");
     assert(mh);
 
     __gshared align(1024) ubyte[testSize] memory2;
-    auto mh2 = mem.addMemHeader(testSize, MemFlags().MEMF_FAST, short(5), memory2.ptr, "FastMemory");
+    auto mh2 = mem.addMemHeader(testSize, MemFlags.Fast, short(5), memory2.ptr, "FastMemory");
     assert(mh2);
 
-    auto availMem1 = mem.availMem(MemFlags.MEMF_ANY);
-    auto largestMem1 = mem.availMem(MemFlags.MEMF_LARGEST);
-    auto totalMem1 = mem.availMem(MemFlags.MEMF_TOTAL);
+    auto availMem1 = mem.availMem(MemFlags.Any);
+    auto largestMem1 = mem.availMem(MemFlags.Largest);
+    auto totalMem1 = mem.availMem(MemFlags.Total);
 
     const size_t miniTestSize = 64;
 
     assertThrown!AssertError(mem.freeMem(cast(void*) 0x1234, 42));
 
-    auto memAlloc1 = mem.allocMem(miniTestSize, MemFlags.MEMF_PUBLIC);
+    auto memAlloc1 = mem.allocMem(miniTestSize, MemFlags.Public);
     assert(memAlloc1);
     memset(memAlloc1, 0, miniTestSize);
 
-    assert(mem.typeOfMem(memAlloc1 + 3) & MemFlags.MEMF_PUBLIC);
-    assert(mem.typeOfMem(cast(void*) 0x1234) == MemFlags.MEMF_ANY);
+    assert(mem.typeOfMem(memAlloc1 + 3) & MemFlags.Public);
+    assert(mem.typeOfMem(cast(void*) 0x1234) == MemFlags.Any);
 
     mem.freeMem(memAlloc1, miniTestSize);
-    assert(mem.availMem(MemFlags.MEMF_ANY) == availMem1);
+    assert(mem.availMem(MemFlags.Any) == availMem1);
 
-    auto memAlloc2 = mem.allocVec(miniTestSize, MemFlags.MEMF_FAST);
+    auto memAlloc2 = mem.allocVec(miniTestSize, MemFlags.Fast);
     assert((cast(size_t) memAlloc2 & (2 ^^ 5 - 1)) == 8, "not vectored.");
     memset(memAlloc2, 0, miniTestSize);
     mem.freeVec(memAlloc2);
 
-    auto memAlloc2f = mem.allocVec(miniTestSize, MemFlags.MEMF_PUBLIC);
+    auto memAlloc2f = mem.allocVec(miniTestSize, MemFlags.Public);
     assert((cast(size_t) memAlloc2f & (2 ^^ 5 - 1)) == 8, "not vectored.");
     memset(memAlloc2f, 0, miniTestSize);
     mem.freeVec(memAlloc2f);
 
-    auto memAlloc3 = mem.allocAlign(miniTestSize, 7, MemFlags.MEMF_FAST);
+    auto memAlloc3 = mem.allocAlign(miniTestSize, 7, MemFlags.Fast);
     assert((cast(size_t) memAlloc3 & (2 ^^ 7 - 1)) == 0, "not aligned.");
     memset(memAlloc3, 0, miniTestSize);
     mem.freeMem(memAlloc3, miniTestSize);
 
-    auto memAlloc3f = mem.allocAlign(miniTestSize, 7, MemFlags.MEMF_PUBLIC);
+    auto memAlloc3f = mem.allocAlign(miniTestSize, 7, MemFlags.Public);
     assert((cast(size_t) memAlloc3f & (2 ^^ 7 - 1)) == 0, "not aligned.");
     memset(memAlloc3f, 0, miniTestSize);
     mem.freeMem(memAlloc3f, miniTestSize);
@@ -2033,7 +2032,7 @@ unittest {
     memset(memAlloc4f, 0, miniTestSize);
     mem.freeMem(memAlloc4f, miniTestSize);
 
-    auto availMem2 = mem.availMem(MemFlags.MEMF_ANY);
+    auto availMem2 = mem.availMem(MemFlags.Any);
     assert(availMem1 == availMem2);
 
     auto sysMemHandler = mem.addMemHandler("System Handler", short(0), &mem.systemMemHandler, null);
@@ -2047,10 +2046,10 @@ unittest {
     TinyHead tl = TinyHead();
     tl.initListHead();
     logFLine("Fill 75%%");
-    while (mem.availMem(MemFlags()) > mem.availMem(MemFlags.MEMF_TOTAL) / 4) {
+    while (mem.availMem(MemFlags()) > mem.availMem(MemFlags.Total) / 4) {
         size_t sz = uniform(TinyNode.sizeof, 1024);
-        MemFlags mflgs = sz & 1 ? MemFlags.MEMF_REVERSE : MemFlags();
-        auto node = cast(TinyNode*) mem.allocVec(sz, mflgs | MemFlags.MEMF_CLEAR);
+        MemFlags mflgs = sz & 1 ? MemFlags.Reverse : MemFlags();
+        auto node = cast(TinyNode*) mem.allocVec(sz, mflgs | MemFlags.Clear);
         if (node) {
             *node = TinyNode();
             node.addNode(tl);
@@ -2059,14 +2058,14 @@ unittest {
     logFLine("Free 50%%");
     while (auto node = tl.remNodeTail) {
         mem.freeVec(node);
-        if (mem.availMem(MemFlags()) > 3 * mem.availMem(MemFlags.MEMF_TOTAL) / 4)
+        if (mem.availMem(MemFlags()) > 3 * mem.availMem(MemFlags.Total) / 4)
             break;
     }
     logFLine("Fill 100%%");
     while (true) {
         size_t sz = uniform(TinyNode.sizeof, 1024);
-        MemFlags mflgs = sz & 1 ? MemFlags.MEMF_REVERSE : MemFlags();
-        auto node = cast(TinyNode*) mem.allocVec(sz, mflgs | MemFlags.MEMF_CLEAR);
+        MemFlags mflgs = sz & 1 ? MemFlags.Reverse : MemFlags();
+        auto node = cast(TinyNode*) mem.allocVec(sz, mflgs | MemFlags.Clear);
         if (node) {
             *node = TinyNode();
             node.addNode(tl);
@@ -2086,7 +2085,7 @@ unittest {
     mem.remMemHandler(sysMemHandler);
 
     // Memory should be empty now....
-    auto availMem3 = mem.availMem(MemFlags.MEMF_ANY);
+    auto availMem3 = mem.availMem(MemFlags.Any);
     assert(availMem1 == availMem3);
 
     mem.remMemHeader(mh);
@@ -2109,10 +2108,10 @@ unittest {
 
     const size_t testSize = 1024 * 1024;
     __gshared align(1024) ubyte[testSize] memory;
-    auto mh = mem.addMemHeader(testSize, MemFlags().MEMF_PUBLIC, short(0), memory.ptr, "Memory");
+    auto mh = mem.addMemHeader(testSize, MemFlags.Public, short(0), memory.ptr, "Memory");
     assert(mh);
 
-    auto availMem1 = mem.availMem(MemFlags.MEMF_ANY);
+    auto availMem1 = mem.availMem(MemFlags.Any);
 
     const size_t miniTestSize = 64;
 
@@ -2135,7 +2134,7 @@ unittest {
 
     mem.deleteMemEntries(mementries);
 
-    auto availMem3 = mem.availMem(MemFlags.MEMF_ANY);
+    auto availMem3 = mem.availMem(MemFlags.Any);
     assert(availMem1 == availMem3);
 
     mem.remMemHeader(mh);
