@@ -210,6 +210,10 @@ struct MemHeader {
         size_t mc_Bytes; /// Size of this MemChunk.
     }
 
+    /* This structure must be setup with initMemHeader() */
+    @disable this();
+    @disable this(this);
+
     /* Alignment rules for memory. The Block must be large enough to contain
     ** a MemChunk structure, as well a 2^n value for fast masking.
     */
@@ -228,7 +232,7 @@ struct MemHeader {
         return cast(T)((cast(size_t) val + msk) & ~msk);
     }
 
-    /** initMemList -- Init a memheader structure
+    /** initMemHeader -- Init a memheader structure
     *
     *	Prepares a MemHeader structure for other memory functions. The
     *	MemHeader is created at the begin of the memory range. The rest of
@@ -320,7 +324,7 @@ struct MemHeader {
     *   is aligned to MEM_BLOCKSIZE boundaries.
     *
     * See:
-    *	initMemList(), addMemHeader(), remMemHeader(), allocateAbs(), deallocate()
+    *	initMemHeader(), addMemHeader(), remMemHeader(), allocateAbs(), deallocate()
     */
     void* allocate(size_t byteSize, MemFlags flags) {
         void* mymem = null;
@@ -436,7 +440,7 @@ struct MemHeader {
     * Notes:
     *	No access abitration is done here. SysBase may be null.
     * See:
-    *	initMemList(), addMemHeader(), remMemHeader(), Allocate(), deallocate()
+    *	initMemHeader(), addMemHeader(), remMemHeader(), Allocate(), deallocate()
     */
     void* allocateAbs(size_t byteSize, void* location, MemFlags flags) {
         auto alignment = cast(size_t) location;
@@ -601,7 +605,7 @@ struct MemHeader {
     * Returns:
     *	The memoryBlock is freed and it's content is no longer valid.
     * See:
-    *	initMemList(), addMemHeader(), remMemHeader(), allocate(), allocateAbs()
+    *	initMemHeader(), addMemHeader(), remMemHeader(), allocate(), allocateAbs()
     */
     void deallocate(void* memoryBlock, size_t byteSize) {
         logFLine(__FUNCTION__ ~ "( %08x,%08x,%08x )", &this, memoryBlock, byteSize);
@@ -953,7 +957,7 @@ class Memory {
     * Returns:
     *	Memory range is added to system memory management
     * See:
-    *	initMemList(), remMemHeader(), Allocate(), deallocate()
+    *	initMemHeader(), remMemHeader(), Allocate(), deallocate()
     */
     MemHeader* addMemHeader(const size_t size, MemFlags attributes, short pri, void* membase, string name) {
         logFLine(__FUNCTION__ ~ "( %08x,%08x,%08x,%08x,%s )", size, attributes, pri, membase, name);
@@ -978,7 +982,7 @@ class Memory {
     *   removed.
     *
     * See:
-    *	initMemList(), addMemHeader(), Allocate(), deallocate()
+    *	initMemHeader(), addMemHeader(), Allocate(), deallocate()
     */
     MemHeader* remMemHeader(MemHeader* memheader)
     in (memheader !is null, "Missing pointer")
