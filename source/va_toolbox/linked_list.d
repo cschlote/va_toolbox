@@ -1,9 +1,9 @@
 /** Implementation of the Amiga linked lists in D
-**
-** Authors: Carsten Schlote
-** Copyright: Carsten Schlote, 2024
-** License: GPL-3.0-only
-*/
+ *
+ * Authors: Carsten Schlote
+ * Copyright: Carsten Schlote, 2024
+ * License: GPL-3.0-only
+ */
 module va_toolbox.linked_list;
 
 import core.exception;
