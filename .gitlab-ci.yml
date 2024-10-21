@@ -134,6 +134,7 @@ pages:
     - echo "Create GitLab pages for branch $CI_COMMIT_REF_NAME"
     - mv docs public
     - du -h public
+    - echo "The site will be deployed to $CI_PAGES_URL"
   rules:
     # This ensures that only pushes to the default branch will trigger a pages deploy
     - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
