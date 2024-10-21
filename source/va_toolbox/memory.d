@@ -183,7 +183,6 @@ enum MEM_DID_NOTHING = (0); // Nothing we could do...
 enum MEM_ALL_DONE = (-1); // We did all we could do
 enum MEM_TRY_AGAIN = (1); // We did some, try the allocation again
 
-
 /** MemHeader
  *
  *  A MemHeader is placed at the start of a managed memory space. The
@@ -198,6 +197,10 @@ struct MemHeader {
     void* mh_Lower; // lower memory bound
     void* mh_Upper; // upper memory bound+1
     TinyHead mh_ChunkList; // list of free memory regions
+
+    string toString() const @safe pure {
+        return "{" ~ text(mh_Node.ln_Name) ~ ", " ~ text(mh_Lower) ~ "-" ~ text(mh_Upper);
+    }
 
     /** MemChunk - The node of a free mem segment
      *
@@ -326,7 +329,7 @@ struct MemHeader {
     * See:
     *	initMemHeader(), addMemHeader(), remMemHeader(), allocateAbs(), deallocate()
     */
-    void* allocate(size_t byteSize, MemFlags flags) {
+    void* allocate(size_t byteSize, MemFlags flags = MemFlags.Any) {
         void* mymem = null;
         logF(__FUNCTION__ ~ "( %08x,%08x,%08x ) = ", &this, byteSize, flags);
 
@@ -442,7 +445,7 @@ struct MemHeader {
     * See:
     *	initMemHeader(), addMemHeader(), remMemHeader(), Allocate(), deallocate()
     */
-    void* allocateAbs(size_t byteSize, void* location, MemFlags flags) {
+    void* allocateAbs(size_t byteSize, void* location, MemFlags flags = MemFlags.Any) {
         auto alignment = cast(size_t) location;
         void* mymem = null;
 
@@ -572,7 +575,7 @@ struct MemHeader {
      * Returns:
      *   Adress of allocated memory or null
      */
-    void* allocateAligned(size_t byteSize, int alignment, MemFlags flags) {
+    void* allocateAligned(size_t byteSize, int alignment, MemFlags flags = MemFlags.Any) {
         flags |= MemFlags.Align;
         return allocateAbs(byteSize, cast(void*) alignment, flags);
     }
@@ -719,7 +722,7 @@ struct MemHeader {
 
             /* If enabled, fill deallocated memory after the MemChunk header */
             if (DEALLOC_PATTERN) {
-                memset(currmc + 1, cast(ubyte) FILLPATTERN_FREE, byteSize - MemChunk.sizeof);
+                memset(currmc + 1, cast(ubyte) FILLPATTERN_FREE, currmc.mc_Bytes - MemChunk.sizeof);
             }
         }
     }
@@ -910,6 +913,45 @@ unittest {
         mh.deallocate(cast(void*) tn, tn.mc_Bytes);
     }
     assert(mh.mh_Total == mh.mh_Free);
+}
+
+@("MemHeader: Test The ALLOC and DEALLOCATE fills")
+unittest {
+    import va_toolbox.hexdumps : toPrettyHexDump;
+
+    const size_t testSize = MemHeader.alignValUp(
+        MemHeader.sizeof + 4 * MemHeader.MEM_BLOCKSIZE, MemHeader.MEM_BLOCKEXP);
+    __gshared align(MemHeader.MEM_BLOCKSIZE) ubyte[testSize] memory;
+    auto mh = MemHeader.initMemHeader(memory.length, MemFlags(), 0, memory.ptr, "test memory");
+
+    DEBUG = false;
+    void dump() {
+        logFLine("mh:= %s", mh.toString);
+        logFLine("%s", toPrettyHexDump(memory[0x80..$]));
+    }
+
+    dump;
+    auto a1 = mh.allocate(4 * MemHeader.MEM_BLOCKSIZE);
+    dump;
+    mh.deallocate(a1, 4 * MemHeader.MEM_BLOCKSIZE);
+    dump;
+    auto b1 = mh.allocate(MemHeader.MEM_BLOCKSIZE);
+    dump;
+    auto b2 = mh.allocate(MemHeader.MEM_BLOCKSIZE, MemFlags.Reverse);
+    dump;
+    auto b3 = mh.allocate(MemHeader.MEM_BLOCKSIZE);
+    dump;
+    auto b4 = mh.allocate(MemHeader.MEM_BLOCKSIZE, MemFlags.Reverse);
+    dump;
+    mh.deallocate(b1, MemHeader.MEM_BLOCKSIZE);
+    dump;
+    mh.deallocate(b4, MemHeader.MEM_BLOCKSIZE);
+    dump;
+    mh.deallocate(b2, MemHeader.MEM_BLOCKSIZE);
+    dump;
+    mh.deallocate(b3, MemHeader.MEM_BLOCKSIZE);
+    dump;
+    assert(mh.mh_Free == 4 * MemHeader.MEM_BLOCKSIZE);
 }
 
 /** Memory Subsystem
