@@ -927,7 +927,7 @@ unittest {
     DEBUG = false;
     void dump() {
         logFLine("mh:= %s", mh.toString);
-        logFLine("%s", toPrettyHexDump(memory[0x80..$]));
+        logFLine("%s", toPrettyHexDump(memory[0x80 .. $]));
     }
 
     dump;
@@ -1745,8 +1745,23 @@ class Memory {
                         /* We do nasty things here - we force clean the contents of the
                         * free memory chunk list. */
                         if (DEALLOC_PATTERN) {
-                            memset(mc + 1, cast(ubyte) FILLPATTERN_FREE,
-                                mc.mc_Bytes - MemHeader.MemChunk.sizeof);
+                            // memset(mc + 1, cast(ubyte) FILLPATTERN_FREE,
+                            //     mc.mc_Bytes - MemHeader.MemChunk.sizeof);
+                            bool memcmp(ubyte[] array, ubyte value) {
+                                foreach (idx, element; array) {
+                                    if (element != value) {
+                                        import std.stdio;
+
+                                        writefln("idx/len %x/%x  %x!=%x", idx, array.length, element, value);
+                                        return false;
+                                    }
+                                }
+                                return true;
+                            }
+
+                            ubyte* freeMemPtr = cast(ubyte*)(mc + 1);
+                            size_t freeMemSize = mc.mc_Bytes - MemHeader.MemChunk.sizeof;
+                            assert(memcmp(freeMemPtr[0 .. freeMemSize], cast(ubyte) FILLPATTERN_FREE), "Free Mem corrupted.");
                         }
 
                         mc = cast(MemHeader.MemChunk*) mc.mc_Node.getNextNode;
