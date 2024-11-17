@@ -48,7 +48,7 @@ CoverageResult analyzeCoverageFile(string fileName) {
             // Zähle totalLines für alle anderen Zeilen
             auto parts = line.split("|");
             // writeln(parts);
-            if (parts.length >=2) {
+            if (parts.length >= 2) {
                 if (parts[0].strip != "") {
                     // writeln("'",parts[0].strip, "'");
                     totalLines++;
@@ -62,10 +62,9 @@ CoverageResult analyzeCoverageFile(string fileName) {
     return CoverageResult(fileName, totalLines, coveredLines);
 }
 
-
 void printCoverageResults(CoverageResult[] results, size_t totalLines, size_t totalCoveredLines) {
     writeln("\nCoverage pro Datei:");
-    auto headline = format("%-40s %10s%% %13s","File","Coverage", "Covered/Total");
+    auto headline = format("%-40s %10s%% %13s", "File", "Coverage", "Covered/Total");
     auto separator = "-".repeat.take(headline.length).joiner.array;
     writeln(headline);
     writeln(separator);
@@ -140,6 +139,5 @@ void main(string[] args) {
     if (jsonFileName.length > 0) {
         writeCoverageToJson(jsonFileName, results, totalLines, totalCoveredLines);
     }
-
 
 }

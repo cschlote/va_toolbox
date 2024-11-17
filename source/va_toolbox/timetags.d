@@ -19,8 +19,7 @@ import std.datetime.systime;
  *   a version string of the form:
  *   <yea since 2000>.<weekOfYear>.<0000..9999>
  */
-string getTimeTagString(SysTime currtime = Clock.currTime())
-{
+string getTimeTagString(SysTime currtime = Clock.currTime()) {
 	import core.time : weeks;
 	import std.conv : to;
 	import std.datetime.interval : Interval;
@@ -50,8 +49,7 @@ string getTimeTagString(SysTime currtime = Clock.currTime())
 }
 
 @("getTimeTagString")
-unittest
-{
+unittest {
 	assert("19.14.0000" == getTimeTagString(SysTime(DateTime(2019, 4, 1, 0, 0, 0))), "Test 1");
 	assert("19.14.6567" == getTimeTagString(SysTime(DateTime(2019, 4, 5, 14, 20, 0))), "Test 2");
 	assert("19.15.0000" == getTimeTagString(SysTime(DateTime(2019, 4, 8, 0, 0, 0))), "Test 3");
@@ -65,8 +63,7 @@ unittest
  * Note: DaysOfWeek starts at Sunday, not on Monday. This is a difference between
  *       european and anglo-american countries.
  */
-enum DayOfIsoWeek
-{
+enum DayOfIsoWeek {
 	mon,
 	tue,
 	wed,
@@ -89,8 +86,7 @@ enum DayOfIsoWeek
  * Note: DaysOfWeek starts at Sunday, not on Monday. This is a difference between
  *       european and anglo-american countries.
  */
-pure nothrow @nogc @property @safe DayOfIsoWeek dayOfIsoWeek(T)(T data)
-{
+pure nothrow @nogc @property @safe DayOfIsoWeek dayOfIsoWeek(T)(T data) {
 	DayOfWeek stddow = data.dayOfWeek; // Get the american enumeration
 	if (stddow == DayOfWeek.sun)
 		return DayOfIsoWeek.sun;
@@ -99,10 +95,8 @@ pure nothrow @nogc @property @safe DayOfIsoWeek dayOfIsoWeek(T)(T data)
 }
 
 @("dayOfIsoWeek")
-unittest
-{
-	void test(T)()
-	{
+unittest {
+	void test(T)() {
 		assert(dayOfIsoWeek(T(2016, 2, 29)) == DayOfIsoWeek.mon, "2016.Feb.29 is a monday");
 		assert(dayOfIsoWeek(T(2018, 12, 24)) == DayOfIsoWeek.mon, "2018.Dec.24 is a monday");
 		assert(dayOfIsoWeek(T(2018, 12, 30)) == DayOfIsoWeek.sun, "2018.Dec.30 is a sunday");
@@ -154,8 +148,7 @@ unittest
  * Returns:
  *   The isoWeek starting from 0 to 53
  */
-pure nothrow @property @safe steadyIsoWeek(T)(T data)
-{
+pure nothrow @property @safe steadyIsoWeek(T)(T data) {
 	auto isoweek = data.isoWeek; // Get the built-in isoWeek number
 	if ((data.month == 12) && (isoweek == 1))
 		isoweek = 53;
@@ -165,10 +158,8 @@ pure nothrow @property @safe steadyIsoWeek(T)(T data)
 }
 
 @("steadyIsoWeek 1")
-unittest
-{
-	void test(T)()
-	{
+unittest {
+	void test(T)() {
 		// writeln("\t.. with type ", T.stringof);
 		assert(steadyIsoWeek(T(2016, 2, 29)) == 9, "2016.Feb.29 is week  9");
 		assert(steadyIsoWeek(T(2018, 12, 24)) == 52, "2018.Dec.24 is week 52");
@@ -187,12 +178,9 @@ unittest
 }
 
 @("steadyIsoWeek 2")
-unittest
-{
-	void test(T)()
-	{
-		struct TestVal
-		{
+unittest {
+	void test(T)() {
+		struct TestVal {
 			T date;
 			int iso, steadyiso;
 		}
@@ -212,8 +200,7 @@ unittest
 		];
 
 		T date;
-		static foreach (e; testvals)
-		{
+		static foreach (e; testvals) {
 			date = e.date;
 			assert(date.isoWeek == e.iso);
 			assert(date.steadyIsoWeek == e.steadyiso);
@@ -235,14 +222,12 @@ unittest
  * Returns:
  *   The starting day at midnight for the isoWeek specified by data
  */
-@property @safe T startOfIsoWeek(T)(T date)
-{
+@property @safe T startOfIsoWeek(T)(T date) {
 	/* Get the weekday starting from 0 (monday), then substract according
        number of days to get the startday. */
 	int offset = dayOfIsoWeek(date);
 	auto rc = date;
-	if (offset != 0)
-	{
+	if (offset != 0) {
 		if ((date.day - offset) < 1) // Would wrap into previous month?
 		{
 			// Remember number of days to substract in previous month
@@ -250,9 +235,7 @@ unittest
 			rc.add!"months"(-1);
 			rc.day = SysTime(rc).daysInMonth;
 			rc.roll!"days"(-(numberOfDaysLeft));
-		}
-		else
-		{
+		} else {
 			rc.roll!"days"(-(offset));
 		}
 	}
@@ -260,11 +243,9 @@ unittest
 }
 
 @("startOfIsoWeek")
-unittest
-{
+unittest {
 	// writeln("Testing startOfIsoWeek function ...");
-	void test(T)()
-	{
+	void test(T)() {
 		// writeln("\t.. with type ", T.stringof);
 		assert(startOfIsoWeek(T(2016, 2, 29)) == T(2016, 2, 29), "2016, Week  9 started on (2016, 2,29)");
 		assert(startOfIsoWeek(T(2018, 12, 24)) == T(2018, 12, 24), "2018, Week 52 started on (2018,12,24)");
@@ -289,8 +270,7 @@ unittest
  * against the calculated ones.
  */
 @("timetag: Generic tests over range of date/time.")
-unittest
-{
+unittest {
 	import core.time : dur;
 	import std.conv : to;
 	import std.format : format;

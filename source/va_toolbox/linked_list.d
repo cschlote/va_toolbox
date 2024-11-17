@@ -545,6 +545,7 @@ struct LinkedList(alias EHT, alias ENT) {
 
 mixin template LinkedListEmptyMixin() {
 }
+
 alias TinyList = LinkedList!(LinkedListEmptyMixin, LinkedListEmptyMixin);
 alias TinyNode = TinyList.LinkedListNode;
 alias TinyHead = TinyList.LinkedListHead;
@@ -745,8 +746,7 @@ void addNodeSorted(ListHead* listHead, ref ListNode node) {
 *
 */
 ListNode* findNode(ListHead* list, string name) {
-    for (ListNode* node = list.getHeadNode.getNextNode(); !node.isNodeTail();
-        node = node.getNextNode()) {
+    for (ListNode* node = list.getHeadNode.getNextNode(); !node.isNodeTail(); node = node.getNextNode()) {
         if (node.ln_Name.length && node.ln_Name == name)
             return node;
     }
@@ -755,10 +755,10 @@ ListNode* findNode(ListHead* list, string name) {
 
 /* ---------------------------------------------------------------------*/
 
-mixin template LinkedListExtraTest()
-{
+mixin template LinkedListExtraTest() {
     ubyte[4096] block;
 }
+
 alias BlockList = LinkedList!(LinkListNodeExtras, LinkedListExtraTest);
 alias BlockListNode = BlockList.LinkedListNode;
 alias BlockListHead = BlockList.LinkedListHead;

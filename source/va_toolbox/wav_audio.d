@@ -409,7 +409,7 @@ unittest {
         expectedWAV[0x3c .. 0x40] = 0;
         version (DigitalMars) {
             writefln("CAUTION: DMD gives different binary results here. @0x%x test:%s != expect:%s",
-                0x118, testWAV[0x118..0x120], expectedWAV[0x118..0x120]);
+                0x118, testWAV[0x118 .. 0x120], expectedWAV[0x118 .. 0x120]);
             float tval = *(cast(float*)&testWAV[0x118]);
             float eval = *(cast(float*)&expectedWAV[0x118]);
             writefln("CAUTION: This binaries represent 'IEEE 754 float' test:%f and expect:%f", tval, eval);
