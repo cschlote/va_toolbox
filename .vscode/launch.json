@@ -4,7 +4,7 @@
     // Weitere Informationen finden Sie unter https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-        
+
         {
             "type": "lldb",
             "request": "launch",
@@ -27,7 +27,8 @@
             "request": "launch",
             "name": "Launch Test Lib",
             "program": "${workspaceFolder}/va_toolbox-test-library",
-            "args": ["-v", "-t1", "-i", "Memory: Basic Ops"],
+            "args": ["-v", "-t1", "-i", "timetags"],
+            // "args": ["-v", "-t1"],
             "cwd": "${workspaceFolder}"
         }
     ]

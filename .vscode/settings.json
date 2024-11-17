@@ -1,5 +1,6 @@
 {
     "dscanner.ignoredKeys": [
         "dscanner.style.long_line"
-    ]
+    ],
+    "dfmt.alignSwitchStatements": false
 }
