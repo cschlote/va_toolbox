@@ -1014,6 +1014,8 @@ unittest {
 
 version (unittest) import std.stdio;
 
+/** InputRange for LinkedLists
+*/
 class LinkedListRange(T) {
 
 private:

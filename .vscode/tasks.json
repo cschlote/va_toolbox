@@ -78,6 +78,9 @@
 			"type": "shell",
 			"label": "Run linter on source.",
 			"group" : "build",
+			"problemMatcher": [
+				"$dmd"
+			],
 			"command": "${cwd}/scripts/lint-sources.sh",
 			"detail": "Run linter on sources."
 		},

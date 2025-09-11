@@ -27,7 +27,7 @@
             "request": "launch",
             "name": "Launch Test Lib",
             "program": "${workspaceFolder}/va_toolbox-test-library",
-            "args": ["-v", "-t1", "-i", "timetags"],
+            "args": ["-v", "-t1", "-i", "writeWAVFile"],
             // "args": ["-v", "-t1"],
             "cwd": "${workspaceFolder}"
         }

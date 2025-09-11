@@ -413,6 +413,12 @@ unittest {
             float tval = *(cast(float*)&testWAV[0x118]);
             float eval = *(cast(float*)&expectedWAV[0x118]);
             writefln("CAUTION: This binaries represent 'IEEE 754 float' test:%f and expect:%f", tval, eval);
+            writeln ("CAUTION: This means the diffPEAK value differs slightly, but is close enough.");
+            assert(abs(tval - eval) < 0.00001f,
+                "The float value written in the PEAK chunk differs significantly.");
+            import std.math.operations : isClose;
+            assert(isClose(tval, eval, 0.0, 0.000001f),
+                "The float value written in the PEAK chunk differs significantly.");
             testWAV[0x118 .. 0x120] = expectedWAV[0x118 .. 0x120];
         }
         dumpDiff(testWAV, expectedWAV);
