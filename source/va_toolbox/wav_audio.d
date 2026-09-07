@@ -107,6 +107,9 @@ enum AudioFormats {
 ubyte[] toWAVFile(T)(const T[] audioData, uint sampleRate, ushort numChannels)
     if (is(T == ubyte) || is(T == byte) || is(T == short) || is(T == int) || is(T == float)) {
 
+    enforce(numChannels > 0, "Number of channels must be greater than zero.");
+    enforce(audioData.length % numChannels == 0,
+        "Audio data length must be a whole number of frames.");
     ushort bitsPerSample;
     ubyte[] pcmData;
 
@@ -163,7 +166,7 @@ ubyte[] toWAVFile(T)(const T[] audioData, uint sampleRate, ushort numChannels)
     buf.write(numChannels);
     buf.write(sampleRate);
     buf.write((sampleRate * numChannels * bitsPerSample / 8).to!uint); // bytes per seconds
-    buf.write((numChannels * (bitsPerSample + 7) / 8).to!ushort); // block align
+    buf.write((numChannels * bitsPerSample / 8).to!ushort); // block align
     buf.write(bitsPerSample);
 
     // Write the 'fact' chunk only for non-PCM formats (i.e., 32-bit float)
@@ -171,7 +174,7 @@ ubyte[] toWAVFile(T)(const T[] audioData, uint sampleRate, ushort numChannels)
 
         buf.write("fact");
         buf.write(uint(uint.sizeof)); // Size of the 'fact' chunk
-        buf.write(audioData.length.to!uint); // Number of samples
+        buf.write((audioData.length / numChannels).to!uint); // Number of frames
     }
     // Write the 'fact' chunk only for non-PCM formats (i.e., 32-bit float)
     if (is(T == float)) {
@@ -189,12 +192,14 @@ ubyte[] toWAVFile(T)(const T[] audioData, uint sampleRate, ushort numChannels)
         buf.write(uint(1)); // version (4 bytes)
         buf.write(uint(secondsSinceEpoch)); // Placeholder for timestamp seconds since 1.1.1970 (4 bytes)
 
+        auto frameCount = audioData.length / numChannels;
         foreach (chan; 0 .. numChannels) {
             float peakValue = 0.0f;
             uint peakPos = 0;
-            foreach (idx, ref val; audioData) {
+            foreach (frame; 0 .. frameCount) {
+                auto val = audioData[frame * numChannels + chan];
                 if (abs(val) > peakValue) {
-                    peakPos = idx.to!uint;
+                    peakPos = frame.to!uint;
                     peakValue = abs(val);
                 }
             }
@@ -378,6 +383,7 @@ unittest {
         dumpDiff(testWAV, expectedWAV);
         assert(testWAV == expectedWAV, "The written WAV file does not match the expected data.");
     }
+
     // writeln("START OF short DUMP:");
     {
         short[] audioData = generateSinus!short(testFreq.to!float, 1.0, cycleDur, sampleRate);
@@ -424,4 +430,21 @@ unittest {
         dumpDiff(testWAV, expectedWAV);
         assert(testWAV == expectedWAV, "The written WAV file does not match the expected data.");
     }
+}
+
+/** Verifies the header and per-channel PEAK metadata for stereo float WAV data. */
+@("stereo float WAV header")
+unittest {
+    auto wav = toWAVFile!float([0.1f, -0.2f, 0.3f, -0.4f], 48_000, 2);
+
+    // fmt: block align = 2 channels * 32 bits / 8 = 8 bytes.
+    assert(wav[32 .. 34] == [cast(ubyte) 8, 0]);
+    // fact: four interleaved samples represent two stereo frames.
+    assert(wav[44 .. 48] == [cast(ubyte) 2, 0, 0, 0]);
+    // PEAK: left maximum is frame 1, right maximum is frame 1.
+    assert(wav[68 .. 72] == [cast(ubyte) 1, 0, 0, 0]);
+    assert(wav[76 .. 80] == [cast(ubyte) 1, 0, 0, 0]);
+    // data starts after RIFF, fmt, fact, and PEAK chunks.
+    assert(wav[80 .. 84] == cast(ubyte[]) "data");
+    assert(wav[84 .. 88] == [cast(ubyte) 16, 0, 0, 0]);
 }
